@@ -51,9 +51,10 @@ def post_to_general(pending=working):
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
     response = "Couldn't understand you. No problem posted. Please try again or send `!problem help` for tips."
     # Play with this regex here: https://regex101.com/r/3UZNxU/2
+    # TODO: Allow specific channel names to be targeted for submitting problems
     to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
     allow_command = regex.search(r"(?:^allow)", slack_command, regex.IGNORECASE)
-    deny_command = regex.search(r"(?:^deny)", slack_command, regex.IGNORECASE)
+    deny_command = regex.search(r"(?:^deny) *((?:\")(.*)(?:\"))?", slack_command, regex.IGNORECASE)
     close_command = regex.search(r"(?:^close +)(\d+)", slack_command, regex.IGNORECASE)
     list_command = regex.search(r"(?:^list)", slack_command, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", slack_command, regex.IGNORECASE)
@@ -85,7 +86,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             slack_client.api_call("reactions.add", name="question", channel=pending["channel"],
                                   timestamp=pending["timestamp"])
             prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
-                      pending["text"] + "```\n\n`Allow` or `Deny?`"
+                      pending["text"] + "```\n\n`Allow` or `Deny`?"
             slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
     # Approve a posting
     if allow_command and slack_channel == ADMIN_CHANNEL:
@@ -105,7 +106,13 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     if deny_command and slack_channel == ADMIN_CHANNEL:
         # Problem won't be posted
         denial = "Problem will not be posted."
+        try:
+            reason = deny_command.group(2)
+        except AttributeError:
+            reason = None
         prepend = "This posting:\n```" + pending["text"] + "```\nhas been rejected."
+        if reason:
+            prepend += "\nThis reason was given:\n```" + reason + "```\n"
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=denial, as_user=True)
         # Go back to the problem and remove its :question:
         slack_client.api_call("reactions.remove", name="question",
@@ -124,6 +131,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             counter += 1
         prepend += "```"
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+        # TODO: Send post close confirmation
     if close_command and slack_channel == ADMIN_CHANNEL:
         index_to_close = None
         try:
