@@ -155,7 +155,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             response += "\n*Admin-only commands:*\n" \
                         "`allow`: Approves problem to be posted to the users' channel.\n" \
                         "`deny`: Denies a problem being posted to the users' channel.\n" \
-                        "`list`: Lists all pinned problems.\n"
+                        "`list`: Lists all pinned problems.\n" \
+                        "`close #`: Closes problem according to its list number."
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
     if not to_be_posted and not allow_command and not deny_command and not list_command and not close_command \
        and not help_command:
