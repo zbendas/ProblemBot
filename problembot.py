@@ -21,27 +21,33 @@ slack_client = SlackClient(API_KEY)
 
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp):
     response = "Couldn't understand you. No problem posted. Please try again or send `!problem help` for tips."
-    # Play with this regex here: https://regex101.com/r/3UZNxU/1
-    to_be_posted = regex.search(r"(?:^post +)((?:\"|').*(?:\"|'))", slack_command, regex.IGNORECASE)
+    # Play with this regex here: https://regex101.com/r/3UZNxU/2
+    to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
     deny_command = regex.search(r"(?:^deny)\w*?", slack_command, regex.IGNORECASE)
     allow_command = regex.search(r"(?:^allow)\w*?", slack_command, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", slack_command, regex.IGNORECASE)
     # Easy and tangible reaction to acknowledge that a problem has been seen by the bot
     slack_client.api_call("reactions.add", name="rotating_light", channel=slack_channel, timestamp=item_timestamp)
     slack_client.api_call("reactions.add", name="question", channel=slack_channel, timestamp=item_timestamp)
-    pending = {"channel": slack_channel, "timestamp": item_timestamp}
-    if to_be_posted.group(1):
-        # Executed if problem is sent from all channels but admin channel
-        prepend = "<@" + slack_user + "> has requested the following problem be posted: ```" + \
-                  to_be_posted.group(1) + "```\n\n`Allow` or `Deny?`"
-        response = prepend
-        slack_channel.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=response, as_user=True)
+    # Create pending dict after acknowledge, so that parsed messages are traceable, even when they're mistakes.
+    pending = {"channel": slack_channel, "timestamp": item_timestamp, "text": to_be_posted.group(2)}
+    if pending["text"]:
+        if slack_channel == ADMIN_CHANNEL:
+            # Admin requests are automatically approved
+            prepend = "Posting the following:\n```" + pending["text"] + "```"
+            slack_client.api_call("channels.setTopic", channel=USER_CHANNEL, text=pending["text"])
+            # Notify admin channel that problem was posted
+            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend)
+        else:
+            prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
+                      pending["text"] + "```\n\n`Allow` or `Deny?`"
+            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
     elif allow_command and slack_channel == ADMIN_CHANNEL:
         # Problem will be posted
         approval = "Problem posted."
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=approval, as_user=True)
         # Set the topic in the user channel
-        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL, topic=to_be_posted.group(1))
+        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL, topic=pending["text"])
         # Go back to the problem and remove its :question:
         slack_client.api_call("reactions.remove", name="question",
                               channel=pending["channel"], timestamp=pending["timestamp"])
@@ -58,10 +64,11 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp):
     elif help_command:
         response = "These are the commands available:\n" \
                    "`help`: Posts this help.\n" \
-                   "`!problem \"...\"`: Submits a problem posting for approval.\n\n" \
-                   "Admin-only commands:\n" \
-                   "`allow`: Approves problem to be posted to the users' channel.\n" \
-                   "`deny`: Denies a problem being posted to the users' channel."
+                   "`!problem \"...\"`: Submits a problem posting for approval.\n"
+        if slack_channel == ADMIN_CHANNEL:
+            response += "\nAdmin-only commands:\n" \
+                        "`allow`: Approves problem to be posted to the users' channel.\n" \
+                        "`deny`: Denies a problem being posted to the users' channel."
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
     else:
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
