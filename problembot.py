@@ -9,6 +9,7 @@ with open("settings.json") as settings_file:
 # Establish settings
 BOT_ID = settings["bot_id"]
 API_KEY = settings["api"]
+GENERAL_CHANNEL = settings["general_channel"]
 USER_CHANNEL = settings["user_channel"]
 ADMIN_CHANNEL = settings["admin_channel"]
 
@@ -20,6 +21,11 @@ slack_client = SlackClient(API_KEY)
 
 # Instantiate working variable
 working = {"dirty": False, "channel": "", "timestamp": "", "text": ""}
+
+# TODO: Implement an "alert" via message to the general channel whenever an issue is posted
+def post_to_general(pending=working):
+    prepend = "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
+    return
 
 
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
@@ -53,7 +59,6 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                                   channel=pending["channel"], timestamp=pending["timestamp"])
             pending["dirty"] = False
         else:
-            print("Currently: " + str(pending))
             slack_client.api_call("reactions.add", name="question", channel=pending["channel"],
                                   timestamp=pending["timestamp"])
             prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
