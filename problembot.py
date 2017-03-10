@@ -43,12 +43,15 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     # Post a problem
     if to_be_posted:
         if slack_channel == ADMIN_CHANNEL:
-            print("Currently: " + str(pending))
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
-            slack_client.api_call("channels.setTopic", channel=USER_CHANNEL, text=pending["text"])
+            slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                  topic=(":rotating_light: " + pending["text"] + " :rotating_light:"))
             # Notify admin channel that problem was posted
             slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+            slack_client.api_call("reactions.add", name="ok",
+                                  channel=pending["channel"], timestamp=pending["timestamp"])
+            pending["dirty"] = False
         else:
             print("Currently: " + str(pending))
             slack_client.api_call("reactions.add", name="question", channel=pending["channel"],
@@ -62,8 +65,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         approval = "Problem posted."
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=approval, as_user=True)
         # Set the topic in the user channel
-        print("Pre-approval: " + str(pending))
-        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL, topic=pending["text"])
+        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                              topic=":rotating_light: " + pending["text"] + " :rotating_light:")
         # Go back to the problem and remove its :question:
         slack_client.api_call("reactions.remove", name="question",
                               channel=pending["channel"], timestamp=pending["timestamp"])
@@ -73,19 +76,21 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     if deny_command and slack_channel == ADMIN_CHANNEL:
         # Problem won't be posted
         denial = "Problem will not be posted."
+        prepend = "This posting:\n```" + pending["text"] + "```\nhas been rejected."
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=denial, as_user=True)
         # Go back to the problem and remove its :question:
         slack_client.api_call("reactions.remove", name="question",
                               channel=pending["channel"], timestamp=pending["timestamp"])
         slack_client.api_call("reactions.add", name="no_entry_sign",
                               channel=pending["channel"], timestamp=pending["timestamp"])
+        slack_client.api_call("chat.postMessage", channel=pending["channel"], text=prepend, as_user=True)
         pending["dirty"] = False
     if help_command:
         response = "These are the commands available:\n" \
                    "`help`: Posts this help.\n" \
                    "`post \"...\"`: Submits a problem posting for approval.\n"
         if slack_channel == ADMIN_CHANNEL:
-            response += "\nAdmin-only commands:\n" \
+            response += "\n*Admin-only commands:*\n" \
                         "`allow`: Approves problem to be posted to the users' channel.\n" \
                         "`deny`: Denies a problem being posted to the users' channel."
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
