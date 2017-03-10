@@ -121,6 +121,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                               channel=pending["channel"], timestamp=pending["timestamp"])
         slack_client.api_call("chat.postMessage", channel=pending["channel"], text=prepend, as_user=True)
         pending["dirty"] = False
+    # List open postings
     if list_command and slack_channel == ADMIN_CHANNEL:
         # List currently posted problems
         prepend = "Currently, these issues are posted:\n```"
@@ -132,6 +133,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         prepend += "```"
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
         # TODO: Send post close confirmation
+    # Close a posting
     if close_command and slack_channel == ADMIN_CHANNEL:
         index_to_close = None
         try:
@@ -139,6 +141,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         except AttributeError:
             print("Nothing to close.")
         if index_to_close:
+            response = "Problem #" + index_to_close + " closed."
             to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
             # Un-pin from channel
             slack_client.api_call("pins.remove", channel=to_close.channel, timestamp=to_close.timestamp)
@@ -148,13 +151,13 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                                   text="This problem has been closed.", as_user=True)
             del list_of_messages[int(index_to_close) - 1]
             # If there are still problems, update the topic of the user channel
-            if len(list_of_messages) != 0:
+            if len(list_of_messages) > 0:
                 slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
                                       topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
             elif len(list_of_messages) == 0:
                 slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
                                       topic=random.choice(ALL_CLEAR))
-
+            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=response, as_user=True)
     if help_command:
         response = "These are the commands available:\n" \
                    "`help`: Posts this help.\n" \
