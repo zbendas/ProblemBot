@@ -7,6 +7,7 @@ with open("settings.json") as settings_file:
     settings = json.loads(settings_file.read())
 
 # Establish settings
+# TODO: Make changes to allow for multiple user/admin channels
 BOT_ID = settings["bot_id"]
 API_KEY = settings["api"]
 GENERAL_CHANNEL = settings["general_channel"]
@@ -21,10 +22,22 @@ slack_client = SlackClient(API_KEY)
 
 # Instantiate working variable
 working = {"dirty": False, "channel": "", "timestamp": "", "text": ""}
+list_of_messages = []
 
-# TODO: Implement an "alert" via message to the general channel whenever an issue is posted
-def post_to_general(pending=working):
-    prepend = "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
+# TODO: Require this implementation to use classes instead of the working variable (maybe)
+class Message:
+    def __init__(self, channel, timestamp, text):
+        self.channel, self.timestamp, self.text = channel, timestamp, text
+        self.dirty = False
+
+
+def post_to_general(pending=working, pinned_messages=list_of_messages):
+    prepend = ":rotating_light::rotating_light::rotating_light:\n" \
+              "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
+    api_response = slack_client.api_call("chat.postMessage", channel=GENERAL_CHANNEL, text=prepend, as_user=True)
+    message = Message(api_response["channel"], api_response["ts"], api_response["message"]["text"])
+    pinned_messages.append(message)
+    slack_client.api_call("pins.add", channel=GENERAL_CHANNEL, timestamp=api_response["ts"])
     return
 
 
@@ -57,6 +70,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
             slack_client.api_call("reactions.add", name="ok",
                                   channel=pending["channel"], timestamp=pending["timestamp"])
+            post_to_general()
             pending["dirty"] = False
         else:
             slack_client.api_call("reactions.add", name="question", channel=pending["channel"],
@@ -76,6 +90,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         slack_client.api_call("reactions.remove", name="question",
                               channel=pending["channel"], timestamp=pending["timestamp"])
         slack_client.api_call("reactions.add", name="ok", channel=pending["channel"], timestamp=pending["timestamp"])
+        post_to_general()
         pending["dirty"] = False
     # Deny a posting
     if deny_command and slack_channel == ADMIN_CHANNEL:
