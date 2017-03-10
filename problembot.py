@@ -1,5 +1,7 @@
 import json
 import time
+import random
+import datetime as dt
 import re as regex
 from slackclient import SlackClient
 
@@ -16,6 +18,7 @@ ADMIN_CHANNEL = settings["admin_channel"]
 
 # Constants
 AT_BOT = "<@" + BOT_ID + ">"
+ALL_CLEAR = ["No issues!", "Nothing going on!", "No problems!", "Nothing's broken!", "Not much happening today!"]
 
 # Instantiate client
 slack_client = SlackClient(API_KEY)
@@ -24,20 +27,24 @@ slack_client = SlackClient(API_KEY)
 working = {"dirty": False, "channel": "", "timestamp": "", "text": ""}
 list_of_messages = []
 
+
 # TODO: Require this implementation to use classes instead of the working variable (maybe)
 class Message:
-    def __init__(self, channel, timestamp, text):
-        self.channel, self.timestamp, self.text = channel, timestamp, text
+    def __init__(self, chnnl, tmstmp, txt):
+        self.channel, self.timestamp, self.text = chnnl, tmstmp, txt
         self.dirty = False
 
+    def __str__(self):
+        return "Channel: " + self.channel + ", TS: " + self.timestamp + ", Text: " + self.text
 
-def post_to_general(pending=working, pinned_messages=list_of_messages):
+
+def post_to_general(pending=working):
     prepend = ":rotating_light::rotating_light::rotating_light:\n" \
               "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
-    api_response = slack_client.api_call("chat.postMessage", channel=GENERAL_CHANNEL, text=prepend, as_user=True)
-    message = Message(api_response["channel"], api_response["ts"], api_response["message"]["text"])
-    pinned_messages.append(message)
-    slack_client.api_call("pins.add", channel=GENERAL_CHANNEL, timestamp=api_response["ts"])
+    api_result = slack_client.api_call("chat.postMessage", channel=GENERAL_CHANNEL, text=prepend, as_user=True)
+    message = Message(api_result["channel"], api_result["ts"], pending["text"])
+    list_of_messages.append(message)
+    slack_client.api_call("pins.add", channel=GENERAL_CHANNEL, timestamp=api_result["ts"])
     return
 
 
@@ -45,8 +52,10 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     response = "Couldn't understand you. No problem posted. Please try again or send `!problem help` for tips."
     # Play with this regex here: https://regex101.com/r/3UZNxU/2
     to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
-    deny_command = regex.search(r"(?:^deny)", slack_command, regex.IGNORECASE)
     allow_command = regex.search(r"(?:^allow)", slack_command, regex.IGNORECASE)
+    deny_command = regex.search(r"(?:^deny)", slack_command, regex.IGNORECASE)
+    close_command = regex.search(r"(?:^close +)(\d+)", slack_command, regex.IGNORECASE)
+    list_command = regex.search(r"(?:^list)", slack_command, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", slack_command, regex.IGNORECASE)
     # Easy and tangible reaction to acknowledge that a problem has been seen by the bot
     slack_client.api_call("reactions.add", name="rotating_light", channel=slack_channel, timestamp=item_timestamp)
@@ -54,11 +63,11 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         pending["channel"], pending["timestamp"] = slack_channel, item_timestamp
         if to_be_posted:
             pending["dirty"] = True
-        try:
-            pending["text"] = to_be_posted.group(2)
-        except AttributeError:
-            print("No regex match found! Something may be wrong!")
-            pending["text"], pending["dirty"] = "", False
+            try:
+                pending["text"] = to_be_posted.group(2)
+            except AttributeError:
+                print("No regex match found! Something may be wrong!")
+                pending["text"], pending["dirty"] = "", False
     # Post a problem
     if to_be_posted:
         if slack_channel == ADMIN_CHANNEL:
@@ -105,6 +114,39 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                               channel=pending["channel"], timestamp=pending["timestamp"])
         slack_client.api_call("chat.postMessage", channel=pending["channel"], text=prepend, as_user=True)
         pending["dirty"] = False
+    if list_command and slack_channel == ADMIN_CHANNEL:
+        # List currently posted problems
+        prepend = "Currently, these issues are posted:\n```"
+        counter = 1
+        for message in list_of_messages:
+            prepend += str(counter) + ")\t" + message.text + "\t" + \
+                       dt.datetime.fromtimestamp(float(message.timestamp)).strftime('%H:%M %p, %m-%d-%Y') + "\n"
+            counter += 1
+        prepend += "```"
+        slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+    if close_command and slack_channel == ADMIN_CHANNEL:
+        index_to_close = None
+        try:
+            index_to_close = close_command.group(1)
+        except AttributeError:
+            print("Nothing to close.")
+        if index_to_close:
+            to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
+            # Un-pin from channel
+            slack_client.api_call("pins.remove", channel=to_close.channel, timestamp=to_close.timestamp)
+            # Thread closing message
+            slack_client.api_call("chat.postMessage", channel=to_close.channel, timestamp=to_close.timestamp,
+                                  thread_ts=to_close.timestamp, reply_broadcast=True,
+                                  text="This problem has been closed.", as_user=True)
+            del list_of_messages[int(index_to_close) - 1]
+            # If there are still problems, update the topic of the user channel
+            if len(list_of_messages) != 0:
+                slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                      topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
+            elif len(list_of_messages) == 0:
+                slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                      topic=random.choice(ALL_CLEAR))
+
     if help_command:
         response = "These are the commands available:\n" \
                    "`help`: Posts this help.\n" \
@@ -112,9 +154,11 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         if slack_channel == ADMIN_CHANNEL:
             response += "\n*Admin-only commands:*\n" \
                         "`allow`: Approves problem to be posted to the users' channel.\n" \
-                        "`deny`: Denies a problem being posted to the users' channel."
+                        "`deny`: Denies a problem being posted to the users' channel.\n" \
+                        "`list`: Lists all pinned problems.\n"
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
-    if not to_be_posted and not allow_command and not deny_command and not help_command:
+    if not to_be_posted and not allow_command and not deny_command and not list_command and not close_command \
+       and not help_command:
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
 
 
@@ -132,6 +176,12 @@ if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second firehose delay
     if slack_client.rtm_connect():
         print("Problem-Bot connected and running!")
+        print("Grabbing currently posted problems!")
+        api_response = slack_client.api_call("pins.list", channel=GENERAL_CHANNEL)
+        for item in reversed(api_response["items"]):
+            if item["type"] == "message" and item["message"]["user"] == BOT_ID:
+                text = regex.search(r"(?:```)(.*)(?:```)", item["message"]["text"], regex.IGNORECASE).group(1)
+                list_of_messages.append(Message(GENERAL_CHANNEL, item["message"]["ts"], text))
         while True:
             command, user, channel, timestamp = parse_slack_output(slack_client.rtm_read())
             if command and user and channel:
