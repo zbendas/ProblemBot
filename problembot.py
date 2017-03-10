@@ -126,14 +126,13 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         # List currently posted problems
         prepend = "Currently, these issues are posted:\n```"
         counter = 1
-        if list_of_messages > 0:
+        if len(list_of_messages) > 0:
             for message in list_of_messages:
                 prepend += str(counter) + ")\t" + message.text + "\t" + \
                            dt.datetime.fromtimestamp(float(message.timestamp)).strftime('%H:%M %p, %m-%d-%Y') + "\n"
                 counter += 1
         else:
-            print("Test: " + str(len(list_of_messages)))
-            prepend += "---"
+            prepend += "No pending issues."
         prepend += "```"
         slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
     # Close a posting
