@@ -18,8 +18,12 @@ AT_BOT = "<@" + BOT_ID + ">"
 # Instantiate client
 slack_client = SlackClient(API_KEY)
 
+# Instantiate working variable
+# TODO: Make this work via a dirty flag
+working = {"channel": "", "timestamp": "", "text": ""}
 
-def handle_command(slack_command, slack_user, slack_channel, item_timestamp):
+
+def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
     response = "Couldn't understand you. No problem posted. Please try again or send `!problem help` for tips."
     # Play with this regex here: https://regex101.com/r/3UZNxU/2
     to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
@@ -28,17 +32,25 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp):
     help_command = regex.search(r"(?:^help)", slack_command, regex.IGNORECASE)
     # Easy and tangible reaction to acknowledge that a problem has been seen by the bot
     slack_client.api_call("reactions.add", name="rotating_light", channel=slack_channel, timestamp=item_timestamp)
-    slack_client.api_call("reactions.add", name="question", channel=slack_channel, timestamp=item_timestamp)
-    # Create pending dict after acknowledge, so that parsed messages are traceable, even when they're mistakes.
-    pending = {"channel": slack_channel, "timestamp": item_timestamp, "text": to_be_posted.group(2)}
+    if to_be_posted:
+        print("Regex found")
+        pending["channel"] = slack_channel
+        pending["timestamp"] = item_timestamp
+        try:
+            pending["text"] = to_be_posted.group(2)
+        except AttributeError:
+            print("No problem found in regex search!")
+    else:
+        pending = {"channel": slack_channel, "timestamp": item_timestamp, "text": ""}
     if pending["text"]:
         if slack_channel == ADMIN_CHANNEL:
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
             slack_client.api_call("channels.setTopic", channel=USER_CHANNEL, text=pending["text"])
             # Notify admin channel that problem was posted
-            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend)
+            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
         else:
+            slack_client.api_call("reactions.add", name="question", channel=slack_channel, timestamp=item_timestamp)
             prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
                       pending["text"] + "```\n\n`Allow` or `Deny?`"
             slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
@@ -64,7 +76,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp):
     elif help_command:
         response = "These are the commands available:\n" \
                    "`help`: Posts this help.\n" \
-                   "`!problem \"...\"`: Submits a problem posting for approval.\n"
+                   "`post \"...\"`: Submits a problem posting for approval.\n"
         if slack_channel == ADMIN_CHANNEL:
             response += "\nAdmin-only commands:\n" \
                         "`allow`: Approves problem to be posted to the users' channel.\n" \
