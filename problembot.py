@@ -201,7 +201,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             response = "Problem #" + index_to_update + "updated with:\n```" + update_text + "```"
             to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for human indexing
             prepend = "The following update has been posted:\n```"
-            prepend += prepend + update_command.group(3) + "```"
+            prepend += update_command.group(3) + "```"
             # Thread the update message on
             slack_client.api_call("chat.postMessage", channel=to_update.channel,
                                   thread_ts=to_update.timestamp, reply_broadcast=True, text=prepend, as_user=True)
