@@ -13,8 +13,10 @@ with open("settings.json") as settings_file:
 BOT_ID = settings["bot_id"]
 API_KEY = settings["api"]
 GENERAL_CHANNEL = settings["general_channel"]
-USER_CHANNEL = settings["user_channel"]
-ADMIN_CHANNEL = settings["admin_channel"]
+USER_CHANNELS = settings["user_channels"]
+USER_GROUPS = settings["user_groups"]
+ADMIN_CHANNELS = settings["admin_channels"]
+ADMIN_GROUPS = settings["admin_groups"]
 
 # Constants
 AT_BOT = "<@" + BOT_ID + ">"
@@ -56,6 +58,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     allow_command = regex.search(r"(?:^allow)", slack_command, regex.IGNORECASE)
     deny_command = regex.search(r"(?:^deny) *((?:\")(.*)(?:\"))?", slack_command, regex.IGNORECASE)
     close_command = regex.search(r"(?:^close +)(\d+)", slack_command, regex.IGNORECASE)
+    update_command = regex.search(r"(?:^update +)(\d) +((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
     list_command = regex.search(r"(?:^list)", slack_command, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", slack_command, regex.IGNORECASE)
     # Easy and tangible reaction to acknowledge that a problem has been seen by the bot
@@ -71,13 +74,18 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 pending["text"], pending["dirty"] = "", False
     # Post a problem
     if to_be_posted:
-        if slack_channel == ADMIN_CHANNEL:
+        if slack_channel in ADMIN_CHANNELS:
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
-            slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
-                                  topic=(":rotating_light: " + pending["text"] + " :rotating_light:"))
+            for USER_CHANNEL in USER_CHANNELS:
+                slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                      topic=(":rotating_light: " + pending["text"] + " :rotating_light:"))
+            for USER_GROUP in USER_GROUPS:
+                slack_client.api_call("groups.setTopic", channel=USER_GROUP,
+                                      topic=(":rotating_light: " + pending["text"] + " :rotating_light:"))
             # Notify admin channel that problem was posted
-            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+            for ADMIN_CHANNEL in ADMIN_CHANNELS:
+                slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
             slack_client.api_call("reactions.add", name="ok",
                                   channel=pending["channel"], timestamp=pending["timestamp"])
             post_to_general()
@@ -87,15 +95,21 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                                   timestamp=pending["timestamp"])
             prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
                       pending["text"] + "```\n\n`Allow` or `Deny`?"
-            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+            for ADMIN_CHANNEL in ADMIN_CHANNELS:
+                slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
     # Approve a posting
-    if allow_command and slack_channel == ADMIN_CHANNEL:
+    if allow_command and slack_channel in ADMIN_CHANNELS:
         # Problem will be posted
         approval = "Problem posted."
-        slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=approval, as_user=True)
-        # Set the topic in the user channel
-        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
-                              topic=":rotating_light: " + pending["text"] + " :rotating_light:")
+        for ADMIN_CHANNEL in ADMIN_CHANNELS:
+            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=approval, as_user=True)
+        # Set the topic in the user channels
+        for USER_CHANNEL in USER_CHANNELS:
+            slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                  topic=":rotating_light: " + pending["text"] + " :rotating_light:")
+        for USER_GROUP in USER_GROUPS:
+            slack_client.api_call("groups.setTopic", channel=USER_GROUP,
+                                  topic=":rotating_light: " + pending["text"] + " :rotating_light:")
         # Go back to the problem and remove its :question:
         slack_client.api_call("reactions.remove", name="question",
                               channel=pending["channel"], timestamp=pending["timestamp"])
@@ -103,7 +117,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_to_general()
         pending["dirty"] = False
     # Deny a posting
-    if deny_command and slack_channel == ADMIN_CHANNEL:
+    if deny_command and slack_channel in ADMIN_CHANNELS:
         # Problem won't be posted
         denial = "Problem will not be posted."
         try:
@@ -113,7 +127,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         prepend = "This posting:\n```" + pending["text"] + "```\nhas been rejected."
         if reason:
             prepend += "\nThis reason was given:\n```" + reason + "```\n"
-        slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=denial, as_user=True)
+        for ADMIN_CHANNEL in ADMIN_CHANNELS:
+            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=denial, as_user=True)
         # Go back to the problem and remove its :question:
         slack_client.api_call("reactions.remove", name="question",
                               channel=pending["channel"], timestamp=pending["timestamp"])
@@ -122,7 +137,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         slack_client.api_call("chat.postMessage", channel=pending["channel"], text=prepend, as_user=True)
         pending["dirty"] = False
     # List open postings
-    if list_command and slack_channel == ADMIN_CHANNEL:
+    if list_command and slack_channel in ADMIN_CHANNELS:
         # List currently posted problems
         prepend = "Currently, these issues are posted:\n```"
         counter = 1
@@ -134,9 +149,10 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         else:
             prepend += "No pending issues."
         prepend += "```"
-        slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+        # Send this list only to the channel requesting it
+        slack_client.api_call("chat.postMessage", channel=slack_channel, text=prepend, as_user=True)
     # Close a posting
-    if close_command and slack_channel == ADMIN_CHANNEL:
+    if close_command and slack_channel in ADMIN_CHANNELS:
         index_to_close = None
         try:
             index_to_close = close_command.group(1)
@@ -148,23 +164,52 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             # Un-pin from channel
             slack_client.api_call("pins.remove", channel=to_close.channel, timestamp=to_close.timestamp)
             # Thread closing message
-            slack_client.api_call("chat.postMessage", channel=to_close.channel, timestamp=to_close.timestamp,
+            slack_client.api_call("chat.postMessage", channel=to_close.channel,
                                   thread_ts=to_close.timestamp, reply_broadcast=True,
                                   text="This problem has been closed.", as_user=True)
             del list_of_messages[int(index_to_close) - 1]
             # If there are still problems, update the topic of the user channel
             if len(list_of_messages) > 0:
-                slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
-                                      topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
+                for USER_CHANNEL in USER_CHANNELS:
+                    slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                          topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
+                for USER_GROUP in USER_GROUPS:
+                    slack_client.api_call("groups.setTopic", channel=USER_GROUP,
+                                          topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
             elif len(list_of_messages) == 0:
-                slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
-                                      topic=random.choice(ALL_CLEAR))
-            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=response, as_user=True)
+                for USER_CHANNEL in USER_CHANNELS:
+                    slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                          topic=random.choice(ALL_CLEAR))
+                for USER_GROUP in USER_GROUPS:
+                    slack_client.api_call("groups.setTopic", channel=USER_GROUP,
+                                          topic=random.choice(ALL_CLEAR))
+            for ADMIN_CHANNEL in ADMIN_CHANNELS:
+                slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=response, as_user=True)
+    # Update a posting
+    if update_command and slack_channel in ADMIN_CHANNELS:
+        index_to_update = None
+        update_text = None
+        try:
+            index_to_update = update_command.group(1)
+        except AttributeError:
+            print("Nothing to update.")
+        try:
+            update_text = update_command.group(3)
+        except AttributeError:
+            print("No update text given.")
+        if index_to_update and update_text:
+            response = "Problem #" + index_to_update + "updated with:\n```" + update_text + "```"
+            to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for human indexing
+            prepend = "The following update has been posted:\n```"
+            prepend += prepend + update_command.group(3) + "```"
+            # Thread the update message on
+            slack_client.api_call("chat.postMessage", channel=to_update.channel,
+                                  thread_ts=to_update.timestamp, reply_broadcast=True, text=prepend, as_user=True)
     if help_command:
-        response = "These are the commands available:\n" \
+        response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
                    "`help`: Posts this help.\n" \
                    "`post \"...\"`: Submits a problem posting for approval.\n"
-        if slack_channel == ADMIN_CHANNEL:
+        if slack_channel in ADMIN_CHANNELS:
             response += "\n*Admin-only commands:*\n" \
                         "`allow`: Approves problem to be posted to the users' channel.\n" \
                         "`deny`: Denies a problem being posted to the users' channel.\n" \
@@ -172,7 +217,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                         "`close #`: Closes problem according to its list number."
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
     if not to_be_posted and not allow_command and not deny_command and not list_command and not close_command \
-       and not help_command:
+       and not update_command and not help_command:
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
 
 
