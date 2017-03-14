@@ -109,7 +109,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 for ADMIN_GROUP in ADMIN_GROUPS:
                     slack_client.api_call("chat.postMessage", channel=ADMIN_GROUP, text=prepend, as_user=True)
     # Approve a posting
-    if allow_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
+    elif allow_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
         # Problem will be posted
         confirmation = "Problem has been posted."
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=confirmation, as_user=True)
@@ -136,7 +136,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_to_general()
         pending["dirty"] = False
     # Deny a posting
-    if deny_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
+    elif deny_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
         # Problem won't be posted
         denial = "Problem will not be posted."
         try:
@@ -158,7 +158,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         slack_client.api_call("chat.postMessage", channel=pending["channel"], text=prepend, as_user=True)
         pending["dirty"] = False
     # List open postings
-    if list_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
+    elif list_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
         # List currently posted problems
         prepend = "Currently, these issues are posted:\n```"
         counter = 1
@@ -173,7 +173,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         # Send this list only to the channel requesting it
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=prepend, as_user=True)
     # Close a posting
-    if close_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
+    elif close_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
         index_to_close = None
         try:
             index_to_close = close_command.group(1)
@@ -182,34 +182,40 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         if index_to_close:
             response = "Problem #" + index_to_close + " closed."
             to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
-            # TODO: Fix the removal timing issue
-            # If a user doesn't wait for this to finish, it won't unpin properly, but will remove it from the list
             # Un-pin from channel
-            slack_client.api_call("pins.remove", channel=to_close.channel, timestamp=to_close.timestamp)
-            # Thread closing message
-            slack_client.api_call("chat.postMessage", channel=to_close.channel,
-                                  thread_ts=to_close.timestamp, reply_broadcast=True,
-                                  text="This problem has been closed.", as_user=True)
-            del list_of_messages[int(index_to_close) - 1]
-            # If there are still problems, update the topic of the user channel
-            if len(list_of_messages) > 0:
-                for USER_CHANNEL in USER_CHANNELS:
-                    slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
-                                          topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
-                for USER_GROUP in USER_GROUPS:
-                    slack_client.api_call("groups.setTopic", channel=USER_GROUP,
-                                          topic=":rotating_light: " + list_of_messages[-1].text + " :rotating_light:")
-            elif len(list_of_messages) == 0:
-                for USER_CHANNEL in USER_CHANNELS:
-                    slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
-                                          topic=random.choice(ALL_CLEAR))
-                for USER_GROUP in USER_GROUPS:
-                    slack_client.api_call("groups.setTopic", channel=USER_GROUP,
-                                          topic=random.choice(ALL_CLEAR))
-            for ADMIN_CHANNEL in ADMIN_CHANNELS:
-                slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=response, as_user=True)
+            unpinned = slack_client.api_call("pins.remove", channel=to_close.channel, timestamp=to_close.timestamp)
+            # If the pin was not properly removed, do not continue. Alert the user.
+            if unpinned["ok"]:
+                # Thread closing message
+                slack_client.api_call("chat.postMessage", channel=to_close.channel,
+                                      thread_ts=to_close.timestamp, reply_broadcast=True,
+                                      text="This problem has been closed.", as_user=True)
+                del list_of_messages[int(index_to_close) - 1]
+                # If there are still problems, update the topic of the user channel
+                if len(list_of_messages) > 0:
+                    for USER_CHANNEL in USER_CHANNELS:
+                        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                              topic=":rotating_light: " + list_of_messages[-1].text +
+                                                    " :rotating_light:")
+                    for USER_GROUP in USER_GROUPS:
+                        slack_client.api_call("groups.setTopic", channel=USER_GROUP,
+                                              topic=":rotating_light: " + list_of_messages[-1].text +
+                                                    " :rotating_light:")
+                elif len(list_of_messages) == 0:
+                    for USER_CHANNEL in USER_CHANNELS:
+                        slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
+                                              topic=random.choice(ALL_CLEAR))
+                    for USER_GROUP in USER_GROUPS:
+                        slack_client.api_call("groups.setTopic", channel=USER_GROUP,
+                                              topic=random.choice(ALL_CLEAR))
+                for ADMIN_CHANNEL in ADMIN_CHANNELS:
+                    slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=response, as_user=True)
+            else:
+                slack_client.api_call("chat.postMessage", channel=slack_channel,
+                                      text="This problem could not be closed. Please try again in a moment.",
+                                      as_user=True)
     # Update a posting
-    if update_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
+    elif update_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
         index_to_update = None
         update_text = None
         try:
@@ -230,19 +236,20 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                                   thread_ts=to_update.timestamp, reply_broadcast=True, text=prepend, as_user=True)
             # Notify sending channel of posting
             slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
-    if help_command:
+    elif help_command:
         response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
                    "`help`: Posts this help.\n" \
-                   "`post \"...\"`: Submits a problem posting for approval.\n"
+                   "`post \"...\"`: Submits a problem posting for approval.\n" \
+                   "`post \"...\" #channel`: Submits a problem to a specific channel for approval.\n"
         if slack_channel in ADMIN_CHANNELS:
             response += "\n*Admin-only commands:*\n" \
                         "`allow`: Approves problem to be posted to the users' channel.\n" \
                         "`deny`: Denies a problem being posted to the users' channel.\n" \
                         "`list`: Lists all pinned problems.\n" \
+                        "`update # \"...\"`: Updates a problem with the specified text.\n" \
                         "`close #`: Closes problem according to its list number."
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
-    if not to_be_posted and not allow_command and not deny_command and not list_command and not close_command \
-       and not update_command and not help_command:
+    else:
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
 
 
