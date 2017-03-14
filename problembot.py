@@ -50,9 +50,9 @@ def post_to_general(pending=working):
 
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
     response = "Couldn't understand you. No problem posted. Please try again or send `!problem help` for tips."
-    # Play with this regex here: https://regex101.com/r/3UZNxU/2
-    # TODO: Allow specific channel names to be targeted for submitting problems
-    to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
+    # Play with this regex here: https://regex101.com/r/3UZNxU/3
+    to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|')) *"
+                                r"((?:<#)(\w*)(?:\|(\w*)>))?", slack_command, regex.IGNORECASE)
     allow_command = regex.search(r"(?:^allow)", slack_command, regex.IGNORECASE)
     deny_command = regex.search(r"(?:^deny) *((?:\")(.*)(?:\"))?", slack_command, regex.IGNORECASE)
     close_command = regex.search(r"(?:^close +)(\d+)", slack_command, regex.IGNORECASE)
@@ -72,7 +72,6 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 pending["text"], pending["dirty"] = "", False
     # Post a problem
     if to_be_posted:
-        # TODO: Add admin groups, not just admin channels
         if (slack_channel in ADMIN_CHANNELS) or (slack_channel in ADMIN_GROUPS):
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
@@ -96,18 +95,33 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                                   timestamp=pending["timestamp"])
             prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
                       pending["text"] + "```\n\n`Allow` or `Deny`?"
-            for ADMIN_CHANNEL in ADMIN_CHANNELS:
-                slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
-            for ADMIN_GROUP in ADMIN_GROUPS:
-                slack_client.api_call("chat.postMessage", channel=ADMIN_GROUP, text=prepend, as_user=True)
+            try:
+                target_group = to_be_posted.group(4)
+            except AttributeError:
+                # No targeted group
+                target_group = None
+            if target_group:
+                # Send message to target group
+                slack_client.api_call("chat.postMessage", channel=target_group, text=prepend, as_user=True)
+            else:
+                for ADMIN_CHANNEL in ADMIN_CHANNELS:
+                    slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=prepend, as_user=True)
+                for ADMIN_GROUP in ADMIN_GROUPS:
+                    slack_client.api_call("chat.postMessage", channel=ADMIN_GROUP, text=prepend, as_user=True)
     # Approve a posting
     if allow_command and (slack_channel in ADMIN_CHANNELS or slack_channel in ADMIN_GROUPS):
         # Problem will be posted
-        approval = "Problem posted."
+        confirmation = "Problem has been posted."
+        slack_client.api_call("chat.postMessage", channel=slack_channel, text=confirmation, as_user=True)
+        approval = "The following problem has been posted in <#" + GENERAL_CHANNEL + ">:\n```" + pending["text"] + "```"
         for ADMIN_CHANNEL in ADMIN_CHANNELS:
-            slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=approval, as_user=True)
+            # Don't double up on sending confirmation/approval
+            if ADMIN_CHANNEL != slack_channel:
+                slack_client.api_call("chat.postMessage", channel=ADMIN_CHANNEL, text=approval, as_user=True)
         for ADMIN_GROUP in ADMIN_GROUPS:
-            slack_client.api_call("chat.postMessage", channel=ADMIN_GROUP, text=approval, as_user=True)
+            # Don't double up on sending confirmation/approval
+            if ADMIN_GROUP != slack_channel:
+                slack_client.api_call("chat.postMessage", channel=ADMIN_GROUP, text=approval, as_user=True)
         # Set the topic in the user channels
         for USER_CHANNEL in USER_CHANNELS:
             slack_client.api_call("channels.setTopic", channel=USER_CHANNEL,
@@ -168,6 +182,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         if index_to_close:
             response = "Problem #" + index_to_close + " closed."
             to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
+            # TODO: Fix the removal timing issue
+            # If a user doesn't wait for this to finish, it won't unpin properly, but will remove it from the list
             # Un-pin from channel
             slack_client.api_call("pins.remove", channel=to_close.channel, timestamp=to_close.timestamp)
             # Thread closing message
