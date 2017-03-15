@@ -6,6 +6,27 @@ ProblemBot is designed to be used in a chat interface, specifically over Slack. 
 designating some as "user" channels and some as "admin" channels, as well as keep track of a "general" channel where
 he can post and pin specific problems.
 
+## Some Requirements
+In order to get off the ground, ProblemBot has to be told exactly how to direct messages, i.e., what channels are for users, for admins, and which channel is the general channel. Additionally, he'll need a Slack api key and a Slack user ID.
+These should all be collected into a `settings.json` file. This `.json` should be structured as follows:
+`{
+ "api": "XXXX",
+ "bot_id": "XXXX",
+ "general_channel": "XXXX",
+ "user_channels": [
+   "XXXX"],
+ "user_groups": [
+   "XXXX"],
+ "admin_channels": [
+   "XXXX"],
+ "admin_groups": [
+   "XXXX"]
+}`
+
+This `settings.json` file will be loaded using Python's built-in `json` library and parsed using `json.loads()` to establish an internal dictionary of these values.
+
+*Without this file, ProblemBot will crash!*
+
 ## Paging ProblemBot
 ProblemBot takes several plaintext commands via the Slack message stream. He'll check the message feed every second,
 determining whether or not he's been called, then perform whatever action he's been told to perform.
