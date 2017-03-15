@@ -54,7 +54,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|')) *"
                                 r"((?:<#)(\w*)(?:\|(\w*)>))?", slack_command, regex.IGNORECASE)
     allow_command = regex.search(r"(?:^allow)", slack_command, regex.IGNORECASE)
-    deny_command = regex.search(r"(?:^deny) *((?:\")(.*)(?:\"))?", slack_command, regex.IGNORECASE)
+    deny_command = regex.search(r"(?:^deny) *((?:\"|')(.*)(?:\"|'))?", slack_command, regex.IGNORECASE)
     close_command = regex.search(r"(?:^close +)(\d+)", slack_command, regex.IGNORECASE)
     update_command = regex.search(r"(?:^update +)(\d) +((?:\"|')(.*)(?:\"|'))", slack_command, regex.IGNORECASE)
     list_command = regex.search(r"(?:^list)", slack_command, regex.IGNORECASE)
@@ -248,7 +248,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                         "`deny`: Denies a problem being posted to the users' channel.\n" \
                         "`list`: Lists all pinned problems.\n" \
                         "`update # \"...\"`: Updates a problem with the specified text.\n" \
-                        "`close #`: Closes problem according to its list number."
+                        "`close #`: Closes problem according to its list number.\n" \
+                        "\nMore information can be found at https://github.com/zbendas/ProblemBot"
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
     else:
         slack_client.api_call("chat.postMessage", channel=slack_channel, text=response, as_user=True)
