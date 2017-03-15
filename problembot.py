@@ -100,7 +100,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             except AttributeError:
                 # No targeted group
                 target_group = None
-            if target_group:
+            # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
+            if target_group and (target_group in ADMIN_CHANNELS):
                 # Send message to target group
                 slack_client.api_call("chat.postMessage", channel=target_group, text=prepend, as_user=True)
             else:
