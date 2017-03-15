@@ -31,7 +31,10 @@ This `settings.json` file will be loaded using Python's built-in `json` library 
 ProblemBot takes several plaintext commands via the Slack message stream. He'll check the message feed every second,
 determining whether or not he's been called, then perform whatever action he's been told to perform.
 
-To call ProblemBot, mention him using Slack's `@user` functionality or start your message with `!problem`
+To call ProblemBot, mention him using Slack's `@user` functionality or start your message with `!problem`.
+For example, a user could call ProblemBot to post a message by sending:
+`!problem post "There's a widespread DNS issue!" #web"`
+These commands are all explained below.
 
 ## ProblemBot Commands
 ### In particular, he can perform the following actions at a user's request:
