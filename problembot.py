@@ -33,43 +33,60 @@ class Message:
     def __init__(self, chnnl, tmstmp, txt):
         self.channel, self.timestamp, self.text = chnnl, tmstmp, txt
         self.dirty = False
+        self._dirty = None
 
     def __str__(self):
         return "Channel: " + self.channel + ", TS: " + self.timestamp + ", Text: " + self.text
 
+    @property
+    def dirty(self):
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, value):
+        if value is not True or value is not False:
+            raise ValueError("Argument must be boolean.")
+        else:
+            self._dirty = value
+
+    @dirty.deleter
+    def dirty(self):
+        self._dirty = False
+
 
 class Command(object):
     def __init__(self, mode, re):
+        self._type = None
         self.type = mode
         self.regex = re
 
     @property
     def type(self):
-        return self.type
+        return self._type
 
     @type.setter
     def type(self, value):
         passed_in = value.lower()
         if passed_in == "post":
-            self.type = "post"
+            self._type = passed_in
         elif passed_in == "allow":
-            self.type = "allow"
+            self._type = passed_in
         elif passed_in == "deny":
-            self.type = "deny"
+            self._type = passed_in
         elif passed_in == "list":
-            self.type = "list"
+            self._type = passed_in
         elif passed_in == "update":
-            self.type = "update"
+            self._type = passed_in
         elif passed_in == "close":
-            self.type = "close"
+            self._type = passed_in
         elif passed_in == "help":
-            self.type = "help"
+            self._type = passed_in
         else:
-            self.type = None
+            self._type = None
 
     @type.deleter
     def type(self):
-        del self.type
+        del self._type
 
 
 def post_to_general(pending=working):
@@ -130,22 +147,22 @@ def parse_regex(in_text):
     update_command = regex.search(r"(?:^update +)(\d) +((?:\"|')(.*)(?:\"|'))", in_text, regex.IGNORECASE)
     list_command = regex.search(r"(?:^list)", in_text, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", in_text, regex.IGNORECASE)
-    if to_be_posted.group(0):
+    if to_be_posted:
         return Command("post", to_be_posted)
-    elif allow_command.group(0):
+    elif allow_command:
         return Command("allow", allow_command)
-    elif deny_command.group(0):
+    elif deny_command:
         return Command("deny", deny_command)
-    elif close_command.group(0):
+    elif close_command:
         return Command("close", close_command)
-    elif update_command.group(0):
+    elif update_command:
         return Command("update", update_command)
-    elif list_command.group(0):
+    elif list_command:
         return Command("list", list_command)
-    elif help_command.group(0):
+    elif help_command:
         return Command("help", help_command)
     else:
-        return Command(None, None)
+        return Command(None, regex.search("", ""))
 
 
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
@@ -319,21 +336,25 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             # Notify sending channel of posting
             reply_message(slack_channel, response)
     elif command.type == "help":
-        response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
-                   "`help`: Posts this help.\n" \
-                   "`post \"...\"`: Submits a problem posting for approval.\n" \
-                   "`post \"...\" #channel`: Submits a problem to a specific channel for approval.\n"
-        if in_admin:
-            response += "\n*Admin-only commands:*\n" \
-                        "`allow`: Approves problem to be posted to the users' channel.\n" \
-                        "`deny`: Denies a problem being posted to the users' channel.\n" \
-                        "`list`: Lists all pinned problems.\n" \
-                        "`update # \"...\"`: Updates a problem with the specified text.\n" \
-                        "`close #`: Closes problem according to its list number.\n" \
-                        "\nMore information can be found at https://github.com/zbendas/ProblemBot"
-        reply_message(response, slack_channel)
+        post_help(slack_channel, in_admin)
     else:
-        reply_message(slack_channel, response)
+        reply_message(response, slack_channel)
+
+
+def post_help(slack_channel, is_admin):
+    response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
+               "`help`: Posts this help.\n" \
+               "`post \"...\"`: Submits a problem posting for approval.\n" \
+               "`post \"...\" #channel`: Submits a problem to a specific channel for approval.\n"
+    if is_admin:
+        response += "\n*Admin-only commands:*\n" \
+                    "`allow`: Approves problem to be posted to the users' channel.\n" \
+                    "`deny`: Denies a problem being posted to the users' channel.\n" \
+                    "`list`: Lists all pinned problems.\n" \
+                    "`update # \"...\"`: Updates a problem with the specified text.\n" \
+                    "`close #`: Closes problem according to its list number.\n" \
+                    "\nMore information can be found at https://github.com/zbendas/ProblemBot"
+        reply_message(response, slack_channel)
 
 
 def parse_slack_output(slack_rtm_output):
