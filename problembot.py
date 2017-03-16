@@ -38,15 +38,47 @@ class Message:
         return "Channel: " + self.channel + ", TS: " + self.timestamp + ", Text: " + self.text
 
 
+class Command(object):
+    def __init__(self, mode, re):
+        self.type = mode
+        self.regex = re
+
+    @property
+    def type(self):
+        return self.type
+
+    @type.setter
+    def type(self, value):
+        passed_in = value.lower()
+        if passed_in == "post":
+            self.type = "post"
+        elif passed_in == "allow":
+            self.type = "allow"
+        elif passed_in == "deny":
+            self.type = "deny"
+        elif passed_in == "list":
+            self.type = "list"
+        elif passed_in == "update":
+            self.type = "update"
+        elif passed_in == "close":
+            self.type = "close"
+        elif passed_in == "help":
+            self.type = "help"
+        else:
+            self.type = None
+
+    @type.deleter
+    def type(self):
+        del self.type
+
+
 def post_to_general(pending=working):
     prepend = ":rotating_light::rotating_light::rotating_light:\n" \
               "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
-    # api_result = slack_client.api_call("chat.postMessage", channel=GENERAL_CHANNEL, text=prepend, as_user=True)
     api_result = reply_message(prepend, GENERAL_CHANNEL)
     message = Message(api_result["channel"], api_result["ts"], pending["text"])
     list_of_messages.append(message)
-    pin(api_result["ts"], GENERAL_CHANNEL, "+")
-    return
+    return pin(api_result["ts"], GENERAL_CHANNEL, "+")
 
 
 def reply_message(message, destination):
@@ -99,21 +131,21 @@ def parse_regex(in_text):
     list_command = regex.search(r"(?:^list)", in_text, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", in_text, regex.IGNORECASE)
     if to_be_posted.group(0):
-        return [to_be_posted, "post"]
+        return Command("post", to_be_posted)
     elif allow_command.group(0):
-        return [allow_command, "allow"]
+        return Command("allow", allow_command)
     elif deny_command.group(0):
-        return [deny_command, "deny"]
+        return Command("deny", deny_command)
     elif close_command.group(0):
-        return [close_command, "close"]
+        return Command("close", close_command)
     elif update_command.group(0):
-        return [update_command, "update"]
+        return Command("update", update_command)
     elif list_command.group(0):
-        return [list_command, "list"]
+        return Command("list", list_command)
     elif help_command.group(0):
-        return [help_command, "help"]
+        return Command("help", help_command)
     else:
-        return None
+        return Command(None, None)
 
 
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
@@ -128,15 +160,15 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     if not pending["dirty"]:
         pending["channel"], pending["timestamp"] = slack_channel, item_timestamp
         # If user is attempting to post problem
-        if command[1] == "post":
+        if command.type == "post":
             pending["dirty"] = True
             try:
-                pending["text"] = command[0].group(2)
+                pending["text"] = command.regex.group(2)
             except AttributeError:
                 print("No regex match found! Something may be wrong!")
                 pending["text"], pending["dirty"] = "", False
     # Post a problem
-    if command[1] == "post":
+    if command.type == "post":
         if (slack_channel in ADMIN_CHANNELS) or (slack_channel in ADMIN_GROUPS):
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
@@ -157,7 +189,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
                       pending["text"] + "```\n\n`Allow` or `Deny`?"
             try:
-                target_group = command[0].group(4)
+                target_group = command.regex.group(4)
             except AttributeError:
                 # No targeted group
                 target_group = None
@@ -171,7 +203,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 for ADMIN_GROUP in ADMIN_GROUPS:
                     reply_message(prepend, ADMIN_GROUP)
     # Approve a posting
-    elif command[1] == "allow" and in_admin:
+    elif command.type == "allow" and in_admin:
         # Problem will be posted
         confirmation = "Problem has been posted."
         reply_message(confirmation, slack_channel)
@@ -195,11 +227,11 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_to_general()
         pending["dirty"] = False
     # Deny a posting
-    elif command[1] == "deny" and in_admin:
+    elif command.type == "deny" and in_admin:
         # Problem won't be posted
         denial = "Problem will not be posted."
         try:
-            reason = command[0].group(2)
+            reason = command.regex.group(2)
         except AttributeError:
             reason = None
         prepend = "This posting:\n```" + pending["text"] + "```\nhas been rejected."
@@ -215,7 +247,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         reply_message(prepend, pending["channel"])
         pending["dirty"] = False
     # List open postings
-    elif command[1] == "list" and in_admin:
+    elif command.type == "list" and in_admin:
         # List currently posted problems
         prepend = "Currently, these issues are posted:\n```"
         counter = 1
@@ -230,10 +262,10 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         # Send this list only to the channel requesting it
         reply_message(prepend, slack_channel)
     # Close a posting
-    elif command[1] == "close" and in_admin:
+    elif command.type == "close" and in_admin:
         index_to_close = None
         try:
-            index_to_close = command[0].group(1)
+            index_to_close = command.regex.group(1)
         except AttributeError:
             print("Nothing to close.")
         if index_to_close:
@@ -266,27 +298,27 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             else:
                 reply_message("This problem could not be closed. Please try again in a moment.", slack_channel)
     # Update a posting
-    elif command[1] == "update" and in_admin:
+    elif command.type == "update" and in_admin:
         index_to_update = None
         update_text = None
         try:
-            index_to_update = command[0].group(1)
+            index_to_update = command.regex.group(1)
         except AttributeError:
             print("Nothing to update.")
         try:
-            update_text = command[0].group(3)
+            update_text = command.regex.group(3)
         except AttributeError:
             print("No update text given.")
         if index_to_update and update_text:
             response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
             to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for human indexing
             prepend = "The following update has been posted:\n```"
-            prepend += command[0].group(3) + "```"
+            prepend += command.regex.group(3) + "```"
             # Thread the update message on
             thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
             # Notify sending channel of posting
             reply_message(slack_channel, response)
-    elif command[1] == "help":
+    elif command.type == "help":
         response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
                    "`help`: Posts this help.\n" \
                    "`post \"...\"`: Submits a problem posting for approval.\n" \
