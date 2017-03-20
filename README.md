@@ -2,14 +2,13 @@
 A bot designed to help track outages and problems by creating pinned messages in Slack!
 
 ## What ProblemBot Does
-ProblemBot is designed to be used in a chat interface, specifically over Slack. The bot can manage multiple channels,
-designating some as "user" channels and some as "admin" channels, as well as keep track of a "general" channel where
-he can post and pin specific problems.
+ProblemBot is designed to be used in a chat interface via the [Slack API](http://api.slack.com/) for Python. The bot can manage multiple channels, designating some as "user" channels and some as "admin" channels, as well as keep track of a "general" channel where he can post and pin specific problems.
 
 ## Some Requirements
 In order to get off the ground, ProblemBot has to be told exactly how to direct messages, i.e., what channels are for users, for admins, and which channel is the general channel. Additionally, he'll need a Slack api key and a Slack user ID.
 These should all be collected into a `settings.json` file. This `.json` should be structured as follows:
-`{
+```json
+{
  "api": "XXXX",
  "bot_id": "XXXX",
  "general_channel": "XXXX",
@@ -21,8 +20,8 @@ These should all be collected into a `settings.json` file. This `.json` should b
    "XXXX"],
  "admin_groups": [
    "XXXX"]
-}`
-
+}
+```
 This `settings.json` file will be loaded using Python's built-in `json` library and parsed using `json.loads()` to establish an internal dictionary of these values.
 
 *Without this file, ProblemBot will crash!*
@@ -31,10 +30,7 @@ This `settings.json` file will be loaded using Python's built-in `json` library 
 ProblemBot takes several plaintext commands via the Slack message stream. He'll check the message feed every second,
 determining whether or not he's been called, then perform whatever action he's been told to perform.
 
-To call ProblemBot, mention him using Slack's `@user` functionality or start your message with `!problem`.
-For example, a user could call ProblemBot to post a message by sending:
-`!problem post "There's a widespread DNS issue!" #web"`
-These commands are all explained below.
+To call ProblemBot, mention him using Slack's `@user` functionality or start your message with `!problem`
 
 ## ProblemBot Commands
 ### In particular, he can perform the following actions at a user's request:
@@ -72,7 +68,6 @@ This command can be used as follows:
 ProblemBot will invalidate a suggested problem, going no further with the posting process.
 This command can be used as follows:
 * `deny`: Denies the suggested problem
-  * 
 * `deny "reason"`: Denies the suggested problem, then notifies the sender of the reason for the denial
   * No spelling nor grammar correction will be applied to the text between `"`
 #### List all posted problems
