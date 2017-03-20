@@ -89,17 +89,24 @@ class Command(object):
         del self._type
 
 
+def post_message(message, destination):
+    return slack_client.api_call("chat.postMessage", channel=destination, text=message, as_user=True)
+
+
 def post_to_general(pending=working):
     prepend = ":rotating_light::rotating_light::rotating_light:\n" \
               "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
-    api_result = reply_message(prepend, GENERAL_CHANNEL)
+    api_result = post_message(prepend, GENERAL_CHANNEL)
     message = Message(api_result["channel"], api_result["ts"], pending["text"])
     list_of_messages.append(message)
     return pin(api_result["ts"], GENERAL_CHANNEL, "+")
 
 
-def reply_message(message, destination):
-    return slack_client.api_call("chat.postMessage", channel=destination, text=message, as_user=True)
+def post_to_admin(message):
+    for ADMIN_CHANNEL in ADMIN_CHANNELS:
+        post_message(message, ADMIN_CHANNEL)
+    for ADMIN_GROUP in ADMIN_GROUPS:
+        post_message(message, ADMIN_GROUP)
 
 
 def thread_reply(message, destination, thread_parent, broadcast=False):
@@ -186,7 +193,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 pending["text"], pending["dirty"] = "", False
     # Post a problem
     if command.type == "post":
-        if (slack_channel in ADMIN_CHANNELS) or (slack_channel in ADMIN_GROUPS):
+        if in_admin:
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
             for USER_CHANNEL in USER_CHANNELS:
@@ -194,10 +201,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             for USER_GROUP in USER_GROUPS:
                 change_topic(":rotating_light: " + pending["text"] + " :rotating_light:", USER_GROUP, "g")
             # Notify admin channel that problem was posted
-            for ADMIN_CHANNEL in ADMIN_CHANNELS:
-                reply_message(prepend, ADMIN_CHANNEL)
-            for ADMIN_GROUP in ADMIN_GROUPS:
-                reply_message(prepend, ADMIN_GROUP)
+            post_to_admin(prepend)
             react("ok", pending["channel"], pending["timestamp"], "+")
             post_to_general()
             pending["dirty"] = False
@@ -213,26 +217,23 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
             if target_group and (target_group in ADMIN_CHANNELS):
                 # Send message to target group
-                reply_message(prepend, target_group)
+                post_message(prepend, target_group)
             else:
-                for ADMIN_CHANNEL in ADMIN_CHANNELS:
-                    reply_message(prepend, ADMIN_CHANNEL)
-                for ADMIN_GROUP in ADMIN_GROUPS:
-                    reply_message(prepend, ADMIN_GROUP)
+                post_to_admin(prepend)
     # Approve a posting
     elif command.type == "allow" and in_admin:
         # Problem will be posted
         confirmation = "Problem has been posted."
-        reply_message(confirmation, slack_channel)
+        post_message(confirmation, slack_channel)
         approval = "The following problem has been posted in <#" + GENERAL_CHANNEL + ">:\n```" + pending["text"] + "```"
         for ADMIN_CHANNEL in ADMIN_CHANNELS:
             # Don't double up on sending confirmation/approval
             if ADMIN_CHANNEL != slack_channel:
-                reply_message(approval, ADMIN_CHANNEL)
+                post_message(approval, ADMIN_CHANNEL)
         for ADMIN_GROUP in ADMIN_GROUPS:
             # Don't double up on sending confirmation/approval
             if ADMIN_GROUP != slack_channel:
-                reply_message(approval, ADMIN_GROUP)
+                post_message(approval, ADMIN_GROUP)
         # Set the topic in the user channels
         for USER_CHANNEL in USER_CHANNELS:
             change_topic(":rotating_light: " + pending["text"] + " :rotating_light:", USER_CHANNEL, "c")
@@ -254,30 +255,15 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         prepend = "This posting:\n```" + pending["text"] + "```\nhas been rejected."
         if reason:
             prepend += "\nThis reason was given:\n```" + reason + "```\n"
-        for ADMIN_CHANNEL in ADMIN_CHANNELS:
-            reply_message(denial, ADMIN_CHANNEL)
-        for ADMIN_GROUP in ADMIN_GROUPS:
-            reply_message(denial, ADMIN_GROUP)
+        post_to_admin(denial)
         # Go back to the problem and remove its :question:
         react("question", channel["pending"], channel["timestamp"], "-")
         react("no_entry_sign", channel["pending"], channel["timestamp"], "+")
-        reply_message(prepend, pending["channel"])
+        post_message(prepend, pending["channel"])
         pending["dirty"] = False
     # List open postings
     elif command.type == "list" and in_admin:
-        # List currently posted problems
-        prepend = "Currently, these issues are posted:\n```"
-        counter = 1
-        if len(list_of_messages) > 0:
-            for message in list_of_messages:
-                prepend += str(counter) + ")\t" + message.text + "\t" + \
-                           dt.datetime.fromtimestamp(float(message.timestamp)).strftime('%H:%M %p, %m-%d-%Y') + "\n"
-                counter += 1
-        else:
-            prepend += "No pending issues."
-        prepend += "```"
-        # Send this list only to the channel requesting it
-        reply_message(prepend, slack_channel)
+        post_list(slack_channel)
     # Close a posting
     elif command.type == "close" and in_admin:
         index_to_close = None
@@ -308,12 +294,9 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                         change_topic(random.choice(ALL_CLEAR), USER_CHANNEL, "c")
                     for USER_GROUP in USER_GROUPS:
                         change_topic(random.choice(ALL_CLEAR), USER_GROUP, "g")
-                for ADMIN_CHANNEL in ADMIN_CHANNELS:
-                    reply_message(response, ADMIN_CHANNEL)
-                for ADMIN_GROUP in ADMIN_GROUPS:
-                    reply_message(response, ADMIN_GROUP)
+                post_to_admin(response)
             else:
-                reply_message("This problem could not be closed. Please try again in a moment.", slack_channel)
+                post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
     # Update a posting
     elif command.type == "update" and in_admin:
         index_to_update = None
@@ -334,11 +317,27 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             # Thread the update message on
             thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
             # Notify sending channel of posting
-            reply_message(slack_channel, response)
+            post_message(slack_channel, response)
     elif command.type == "help":
         post_help(slack_channel, in_admin)
     else:
-        reply_message(response, slack_channel)
+        post_message(response, slack_channel)
+
+
+def post_list(slack_channel):
+    # List currently posted problems
+    prepend = "Currently, these issues are posted:\n```"
+    counter = 1
+    if len(list_of_messages) > 0:
+        for message in list_of_messages:
+            prepend += str(counter) + ")\t" + message.text + "\t" + \
+                       dt.datetime.fromtimestamp(float(message.timestamp)).strftime('%H:%M %p, %m-%d-%Y') + "\n"
+            counter += 1
+    else:
+        prepend += "No pending issues."
+        prepend += "```"
+        # Send this list only to the channel requesting it
+        post_message(prepend, slack_channel)
 
 
 def post_help(slack_channel, is_admin):
@@ -354,7 +353,7 @@ def post_help(slack_channel, is_admin):
                     "`update # \"...\"`: Updates a problem with the specified text.\n" \
                     "`close #`: Closes problem according to its list number.\n" \
                     "\nMore information can be found at https://github.com/zbendas/ProblemBot"
-        reply_message(response, slack_channel)
+        post_message(response, slack_channel)
 
 
 def parse_slack_output(slack_rtm_output):
