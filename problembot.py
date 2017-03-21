@@ -134,6 +134,13 @@ def change_topic(topic, destination, flag):
         raise ValueError("Flag argument can be only c or g")
 
 
+def set_user_topics(topic):
+    for USER_CHANNEL in USER_CHANNELS:
+        change_topic(":rotating_light: " + topic + " :rotating_light:", USER_CHANNEL, "c")
+    for USER_GROUP in USER_GROUPS:
+        change_topic(":rotating_light: " + topic + " :rotating_light:", USER_GROUP, "g")
+
+
 def pin(ts, destination, flag):
     flag = flag.lower()
     if flag == "a" or flag == "+":
@@ -196,10 +203,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         if in_admin:
             # Admin requests are automatically approved
             prepend = "Posting the following:\n```" + pending["text"] + "```"
-            for USER_CHANNEL in USER_CHANNELS:
-                change_topic(":rotating_light: " + pending["text"] + " :rotating_light:", USER_CHANNEL, "c")
-            for USER_GROUP in USER_GROUPS:
-                change_topic(":rotating_light: " + pending["text"] + " :rotating_light:", USER_GROUP, "g")
+            # Change user topics
+            set_user_topics(pending["text"])
             # Notify admin channel that problem was posted
             post_to_admin(prepend)
             react("ok", pending["channel"], pending["timestamp"], "+")
@@ -235,10 +240,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             if ADMIN_GROUP != slack_channel:
                 post_message(approval, ADMIN_GROUP)
         # Set the topic in the user channels
-        for USER_CHANNEL in USER_CHANNELS:
-            change_topic(":rotating_light: " + pending["text"] + " :rotating_light:", USER_CHANNEL, "c")
-        for USER_GROUP in USER_GROUPS:
-            change_topic(":rotating_light: " + pending["text"] + " :rotating_light:", USER_GROUP, "g")
+        set_user_topics(pending["text"])
         # Go back to the problem and remove its :question:
         react("question", pending["channel"], pending["timestamp"], "-")
         react("ok", pending["channel"], pending["timestamp"], "+")
@@ -247,20 +249,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     # Deny a posting
     elif command.type == "deny" and in_admin:
         # Problem won't be posted
-        denial = "Problem will not be posted."
-        try:
-            reason = command.regex.group(2)
-        except AttributeError:
-            reason = None
-        prepend = "This posting:\n```" + pending["text"] + "```\nhas been rejected."
-        if reason:
-            prepend += "\nThis reason was given:\n```" + reason + "```\n"
-        post_to_admin(denial)
-        # Go back to the problem and remove its :question:
-        react("question", channel["pending"], channel["timestamp"], "-")
-        react("no_entry_sign", channel["pending"], channel["timestamp"], "+")
-        post_message(prepend, pending["channel"])
-        pending["dirty"] = False
+        post_deny(command, pending)
     # List open postings
     elif command.type == "list" and in_admin:
         post_list(slack_channel)
@@ -322,6 +311,23 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_help(slack_channel, in_admin)
     else:
         post_message(response, slack_channel)
+
+
+def post_deny(command, posting):
+    denial = "Problem will not be posted."
+    try:
+        reason = command.regex.group(2)
+    except AttributeError:
+        reason = None
+    prepend = "This posting:\n```" + posting["text"] + "```\n has been rejected."
+    if reason:
+        prepend += "\NThis reason was given:\n```" + reason + "```\n"
+    post_to_admin(denial)
+    # Go back to problem and remove its :question:
+    react("question", posting["channel"], posting["timestamp"], "-")
+    react("no_entry_sign", posting["channel"], posting["timestamp"], "+")
+    post_message(prepend, posting["channel"])
+    posting["dirty"] = False
 
 
 def post_list(slack_channel):
