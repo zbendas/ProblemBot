@@ -25,7 +25,7 @@ ALL_CLEAR = ["No issues!", "Nothing going on!", "No problems!", "Nothing's broke
 slack_client = SlackClient(API_KEY)
 
 # Instantiate working variable
-working = {"dirty": False, "channel": "", "timestamp": "", "text": ""}
+working = {"dirty": False, "channel": "", "timestamp": "", "text": "", "regex": None}
 list_of_messages = []
 
 
@@ -195,9 +195,10 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
             pending["dirty"] = True
             try:
                 pending["text"] = command.regex.group(2)
+                pending["regex"] = command.regex
             except AttributeError:
                 print("No regex match found! Something may be wrong!")
-                pending["text"], pending["dirty"] = "", False
+                pending["text"], pending["dirty"], pending["regex"] = "", False, None
     # Post a problem
     if command.type == "post":
         if in_admin:
@@ -220,7 +221,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 # No targeted group
                 target_group = None
             # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
-            if target_group and (target_group in ADMIN_CHANNELS):
+            if target_group and (target_group in ADMIN_CHANNELS or target_group in ADMIN_GROUPS):
                 # Send message to target group
                 post_message(prepend, target_group)
             else:
@@ -322,7 +323,15 @@ def post_deny(command, posting):
     prepend = "This posting:\n```" + posting["text"] + "```\n has been rejected."
     if reason:
         prepend += "\NThis reason was given:\n```" + reason + "```\n"
-    post_to_admin(denial)
+    if posting["regex"]:
+        try:
+            target = posting["regex"].group(4)  # Find the channel this was targeted to
+        except AttributeError:
+            target = None
+        if target and (target in ADMIN_CHANNELS and target in ADMIN_GROUPS):
+            post_message(denial, target)
+        else:
+            post_to_admin(denial)
     # Go back to problem and remove its :question:
     react("question", posting["channel"], posting["timestamp"], "-")
     react("no_entry_sign", posting["channel"], posting["timestamp"], "+")
