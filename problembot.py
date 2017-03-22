@@ -289,29 +289,33 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
     # Update a posting
     elif command.type == "update" and in_admin:
-        index_to_update = None
-        update_text = None
-        try:
-            index_to_update = command.regex.group(1)
-        except AttributeError:
-            print("Nothing to update.")
-        try:
-            update_text = command.regex.group(3)
-        except AttributeError:
-            print("No update text given.")
-        if index_to_update and update_text:
-            response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
-            to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for human indexing
-            prepend = "The following update has been posted:\n```"
-            prepend += command.regex.group(3) + "```"
-            # Thread the update message on
-            thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
-            # Notify sending channel of posting
-            post_message(slack_channel, response)
+        post_update(command, slack_channel)
     elif command.type == "help":
         post_help(slack_channel, in_admin)
     else:
         post_message(response, slack_channel)
+
+
+def post_update(command, slack_channel):
+    index_to_update = None
+    update_text = None
+    try:
+        index_to_update = command.regex.group(1)
+    except AttributeError:
+        print("Nothing to update.")
+    try:
+        update_text = command.regex.group(3)
+    except AttributeError:
+        print("No update text given.")
+    if index_to_update and update_text:
+        response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
+        to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for indexing
+        prepend = "The following update has been posted:\n```"
+        prepend += update_text
+        # Thread the update message
+        thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
+        # Notify sending channel of posting
+        post_message(slack_channel, response)
 
 
 def post_deny(command, posting):
