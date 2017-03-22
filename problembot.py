@@ -154,6 +154,13 @@ def set_user_topics(topic):
         change_topic(":rotating_light: " + topic + " :rotating_light:", USER_GROUP, "g")
 
 
+def clear_user_topics():
+    for USER_CHANNEL in USER_CHANNELS:
+        change_topic(random.choice(ALL_CLEAR), USER_CHANNEL, "c")
+    for USER_GROUP in USER_GROUPS:
+        change_topic(random.choice(ALL_CLEAR), USER_GROUP, "g")
+
+
 def pin(ts, destination, flag):
     flag = flag.lower()
     if flag == "a" or flag == "+":
@@ -252,37 +259,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_list(slack_channel)
     # Close a posting
     elif command.type == "close" and in_admin:
-        index_to_close = None
-        try:
-            index_to_close = command.regex.group(1)
-        except AttributeError:
-            print("Nothing to close.")
-        if index_to_close:
-            response = "Problem #" + index_to_close + " closed."
-            to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
-            # Un-pin from channel
-            unpinned = pin(to_close.timestamp, to_close.channel, "-")
-            # If the pin was not properly removed, do not continue. Alert the user.
-            if unpinned["ok"]:
-                # Thread closing message
-                thread_reply("This problem has been closed.", to_close.channel, to_close.timestamp, broadcast=True)
-                del list_of_messages[int(index_to_close) - 1]
-                # If there are still problems, update the topic of the user channel
-                if len(list_of_messages) > 0:
-                    for USER_CHANNEL in USER_CHANNELS:
-                        change_topic(":rotating_light: " + list_of_messages[-1].text + " :rotating_light:",
-                                     USER_CHANNEL, "c")
-                    for USER_GROUP in USER_GROUPS:
-                        change_topic(":rotating_light: " + list_of_messages[-1].text + " :rotating_light:",
-                                     USER_GROUP, "g")
-                elif len(list_of_messages) == 0:
-                    for USER_CHANNEL in USER_CHANNELS:
-                        change_topic(random.choice(ALL_CLEAR), USER_CHANNEL, "c")
-                    for USER_GROUP in USER_GROUPS:
-                        change_topic(random.choice(ALL_CLEAR), USER_GROUP, "g")
-                post_to_admin(response)
-            else:
-                post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
+        post_close(command, slack_channel)
     # Update a posting
     elif command.type == "update" and in_admin:
         post_update(command, slack_channel)
@@ -290,6 +267,32 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_help(slack_channel, in_admin)
     else:
         post_message(response, slack_channel)
+
+
+def post_close(command, slack_channel):
+    index_to_close = None
+    try:
+        index_to_close = command.regex.group(1)
+    except AttributeError:
+        print("Nothing to close.")
+    if index_to_close:
+        response = "Problem #" + index_to_close + " closed."
+        to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
+        # Un-pin from channel
+        unpinned = pin(to_close.timestamp, to_close.channel, "-")
+        # If the pin was not properly removed, do not continue. Alert the user.
+        if unpinned["ok"]:
+            # Thread closing message
+            thread_reply("This problem has been closed.", to_close.channel, to_close.timestamp, broadcast=True)
+            del list_of_messages[int(index_to_close) - 1]
+            # If there are still problems, update the topic of the user channel
+            if len(list_of_messages) > 0:
+                set_user_topics(list_of_messages[-1].text)
+            elif len(list_of_messages) == 0:
+                clear_user_topics()
+            post_to_admin(response)
+        else:
+            post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
 
 
 def post_update(command, slack_channel):
