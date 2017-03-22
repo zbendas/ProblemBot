@@ -242,24 +242,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
     # Approve a posting
     elif command.type == "allow" and in_admin:
         # Problem will be posted
-        confirmation = "Problem has been posted."
-        post_message(confirmation, slack_channel)
-        approval = "The following problem has been posted in <#" + GENERAL_CHANNEL + ">:\n```" + pending["text"] + "```"
-        for ADMIN_CHANNEL in ADMIN_CHANNELS:
-            # Don't double up on sending confirmation/approval
-            if ADMIN_CHANNEL != slack_channel:
-                post_message(approval, ADMIN_CHANNEL)
-        for ADMIN_GROUP in ADMIN_GROUPS:
-            # Don't double up on sending confirmation/approval
-            if ADMIN_GROUP != slack_channel:
-                post_message(approval, ADMIN_GROUP)
-        # Set the topic in the user channels
-        set_user_topics(pending["text"])
-        # Go back to the problem and remove its :question:
-        react("question", pending["channel"], pending["timestamp"], "-")
-        react("ok", pending["channel"], pending["timestamp"], "+")
-        post_to_general()
-        pending["dirty"] = False
+        post_allow(pending, slack_channel)
     # Deny a posting
     elif command.type == "deny" and in_admin:
         # Problem won't be posted
@@ -329,6 +312,27 @@ def post_update(command, slack_channel):
         thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
         # Notify sending channel of posting
         post_message(slack_channel, response)
+
+
+def post_allow(pending, slack_channel):
+    confirmation = "Problem has been posted."
+    post_message(confirmation, slack_channel)
+    approval = "The following problem has been posted in <#" + GENERAL_CHANNEL + ">:\n```" + pending["text"] + "```"
+    for ADMIN_CHANNEL in ADMIN_CHANNELS:
+        # Don't double up on sending confirmation/approval
+        if ADMIN_CHANNEL != slack_channel:
+            post_message(approval, ADMIN_CHANNEL)
+    for ADMIN_GROUP in ADMIN_GROUPS:
+        # Don't double up on sending confirmation/approval
+        if ADMIN_GROUP != slack_channel:
+            post_message(approval, ADMIN_GROUP)
+    # Set the topic in user channels
+    set_user_topics(pending["text"])
+    # Go back to the problem and remove its :question:
+    react("question", pending["channel"], pending["timestamp"], "-")
+    react("ok", pending["channel"], pending["timestamp"], "+")
+    post_to_general()
+    pending["dirty"] = False
 
 
 def post_deny(command, posting):
