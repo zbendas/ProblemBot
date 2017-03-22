@@ -5,12 +5,25 @@ import datetime as dt
 import re as regex
 from slackclient import SlackClient
 
-with open("settings.json") as settings_file:
-    settings = json.loads(settings_file.read())
+
+try:
+    with open("settings.json") as settings_file:
+        settings = json.loads(settings_file.read())
+except IOError or OSError:
+    # File doesn't exist, create blank one instead
+    with open("settings.json", "w") as create_file:
+        print(json.dumps({"api": "API_KEY",
+                          "bot_id": "BOT_ID",
+                          "general_channel": "",
+                          "user_channels": [],
+                          "user_groups": [],
+                          "admin_channels": [],
+                          "admin_groups": []}))
+    settings = {}
 
 # Establish settings
-BOT_ID = settings["bot_id"]
 API_KEY = settings["api"]
+BOT_ID = settings["bot_id"]
 GENERAL_CHANNEL = settings["general_channel"]
 USER_CHANNELS = settings["user_channels"]
 USER_GROUPS = settings["user_groups"]
@@ -326,7 +339,7 @@ def post_deny(command, posting):
         reason = None
     prepend = "This posting:\n```" + posting["text"] + "```\n has been rejected."
     if reason:
-        prepend += "\NThis reason was given:\n```" + reason + "```\n"
+        prepend += "\nThis reason was given:\n```" + reason + "```\n"
     if posting["regex"]:
         try:
             target = posting["regex"].group(4)  # Find the channel this was targeted to
