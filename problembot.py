@@ -18,7 +18,7 @@ except IOError or OSError:
                           "user_channels": [],
                           "user_groups": [],
                           "admin_channels": [],
-                          "admin_groups": []}))
+                          "admin_groups": []}), file=create_file)
     settings = {}
 
 # Establish settings
