@@ -11,14 +11,7 @@ try:
         settings = json.loads(settings_file.read())
 except IOError or OSError:
     # File doesn't exist, create blank one instead
-    with open("settings.json", "w") as create_file:
-        print(json.dumps({"api": "API_KEY",
-                          "bot_id": "BOT_ID",
-                          "general_channel": "",
-                          "user_channels": [],
-                          "user_groups": [],
-                          "admin_channels": [],
-                          "admin_groups": []}), file=create_file)
+    print("No settings file found! Loading empty settings. This will cause an error!")
     settings = {}
 
 # Establish settings
