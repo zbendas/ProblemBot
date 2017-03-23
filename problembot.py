@@ -221,31 +221,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 pending["text"], pending["dirty"], pending["regex"] = "", False, None
     # Post a problem
     if command.type == "post":
-        if in_admin:
-            # Admin requests are automatically approved
-            prepend = "Posting the following:\n```" + pending["text"] + "```"
-            # Change user topics
-            set_user_topics(pending["text"])
-            # Notify admin channel that problem was posted
-            post_to_admin(prepend)
-            react("ok", pending["channel"], pending["timestamp"], "+")
-            post_to_general()
-            pending["dirty"] = False
-        else:
-            react("question", pending["channel"], pending["timestamp"], "+")
-            prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
-                      pending["text"] + "```\n\n`Allow` or `Deny`?"
-            try:
-                target_group = command.regex.group(4)
-            except AttributeError:
-                # No targeted group
-                target_group = None
-            # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
-            if target_group and (target_group in ADMIN_CHANNELS or target_group in ADMIN_GROUPS):
-                # Send message to target group
-                post_message(prepend, target_group)
-            else:
-                post_to_admin(prepend)
+        make_post(slack_user, in_admin, pending, command)
     # Approve a posting
     elif command.type == "allow" and in_admin:
         # Problem will be posted
@@ -267,6 +243,34 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_help(slack_channel, in_admin)
     else:
         post_message(response, slack_channel)
+
+
+def make_post(slack_user, in_admin, pending, command):
+    if in_admin:
+        # Admin requests are automatically approved
+        prepend = "Posting the following:\n```" + pending["text"] + "```"
+        # Change user topics
+        set_user_topics(pending["text"])
+        # Notify admin channel that problem was posted
+        post_to_admin(prepend)
+        react("ok", pending["channel"], pending["timestamp"], "+")
+        post_to_general()
+        pending["dirty"] = False
+    else:
+        react("question", pending["channel"], pending["timestamp"], "+")
+        prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
+                  pending["text"] + "```\n\n`Allow` or `Deny`?"
+        try:
+            target_group = command.regex.group(4)
+        except AttributeError:
+            # No targeted group
+            target_group = None
+        # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
+        if target_group and (target_group in ADMIN_CHANNELS or target_group in ADMIN_GROUPS):
+            # Send message to target group
+            post_message(prepend, target_group)
+        else:
+            post_to_admin(prepend)
 
 
 def post_close(command, slack_channel):
