@@ -273,54 +273,6 @@ def make_post(slack_user, in_admin, pending, command):
             post_to_admin(prepend)
 
 
-def post_close(command, slack_channel):
-    index_to_close = None
-    try:
-        index_to_close = command.regex.group(1)
-    except AttributeError:
-        print("Nothing to close.")
-    if index_to_close:
-        response = "Problem #" + index_to_close + " closed."
-        to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
-        # Un-pin from channel
-        unpinned = pin(to_close.timestamp, to_close.channel, "-")
-        # If the pin was not properly removed, do not continue. Alert the user.
-        if unpinned["ok"]:
-            # Thread closing message
-            thread_reply("This problem has been closed.", to_close.channel, to_close.timestamp, broadcast=True)
-            del list_of_messages[int(index_to_close) - 1]
-            # If there are still problems, update the topic of the user channel
-            if len(list_of_messages) > 0:
-                set_user_topics(list_of_messages[-1].text)
-            elif len(list_of_messages) == 0:
-                clear_user_topics()
-            post_to_admin(response)
-        else:
-            post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
-
-
-def post_update(command, slack_channel):
-    index_to_update = None
-    update_text = None
-    try:
-        index_to_update = command.regex.group(1)
-    except AttributeError:
-        print("Nothing to update.")
-    try:
-        update_text = command.regex.group(3)
-    except AttributeError:
-        print("No update text given.")
-    if index_to_update and update_text:
-        response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
-        to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for indexing
-        prepend = "The following update has been posted:\n```"
-        prepend += update_text
-        # Thread the update message
-        thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
-        # Notify sending channel of posting
-        post_message(slack_channel, response)
-
-
 def post_allow(pending, slack_channel):
     confirmation = "Problem has been posted."
     post_message(confirmation, slack_channel)
@@ -381,6 +333,54 @@ def post_list(slack_channel):
         prepend += "```"
         # Send this list only to the channel requesting it
         post_message(prepend, slack_channel)
+
+
+def post_close(command, slack_channel):
+    index_to_close = None
+    try:
+        index_to_close = command.regex.group(1)
+    except AttributeError:
+        print("Nothing to close.")
+    if index_to_close:
+        response = "Problem #" + index_to_close + " closed."
+        to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
+        # Un-pin from channel
+        unpinned = pin(to_close.timestamp, to_close.channel, "-")
+        # If the pin was not properly removed, do not continue. Alert the user.
+        if unpinned["ok"]:
+            # Thread closing message
+            thread_reply("This problem has been closed.", to_close.channel, to_close.timestamp, broadcast=True)
+            del list_of_messages[int(index_to_close) - 1]
+            # If there are still problems, update the topic of the user channel
+            if len(list_of_messages) > 0:
+                set_user_topics(list_of_messages[-1].text)
+            elif len(list_of_messages) == 0:
+                clear_user_topics()
+            post_to_admin(response)
+        else:
+            post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
+
+
+def post_update(command, slack_channel):
+    index_to_update = None
+    update_text = None
+    try:
+        index_to_update = command.regex.group(1)
+    except AttributeError:
+        print("Nothing to update.")
+    try:
+        update_text = command.regex.group(3)
+    except AttributeError:
+        print("No update text given.")
+    if index_to_update and update_text:
+        response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
+        to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for indexing
+        prepend = "The following update has been posted:\n```"
+        prepend += update_text
+        # Thread the update message
+        thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
+        # Notify sending channel of posting
+        post_message(slack_channel, response)
 
 
 def post_help(slack_channel, is_admin):
