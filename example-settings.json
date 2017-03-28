@@ -1,0 +1,16 @@
+{
+  "api": "API_KEY",
+  "bot_id": "BOT_ID",
+  "general_channel": "",
+  "user_channels": [
+    ""
+    ],
+  "user_groups": [
+    ],
+  "admin_channels": [
+    ""
+    ],
+  "admin_groups": [
+    ""
+  ]
+}
