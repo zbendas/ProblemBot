@@ -50,7 +50,7 @@ class Message:
 
     @dirty.setter
     def dirty(self, value):
-        if value is not True or value is not False:
+        if value is not True and value is not False:
             raise ValueError("Argument must be boolean.")
         else:
             self._dirty = value
@@ -313,19 +313,21 @@ def post_deny(command, posting):
 
 
 def post_list(slack_channel):
+    print("Entering list method")
     # List currently posted problems
-    prepend = "Currently, these issues are posted:\n```"
+    prepend = ""
     counter = 1
     if len(list_of_messages) > 0:
+        prepend = "Currently, these issues are posted:\n```"
         for message in list_of_messages:
             prepend += str(counter) + ")\t" + message.text + "\t" + \
                        dt.datetime.fromtimestamp(float(message.timestamp)).strftime('%H:%M %p, %m-%d-%Y') + "\n"
             counter += 1
+        prepend += "```"
     else:
         prepend += "No pending issues."
-        prepend += "```"
-        # Send this list only to the channel requesting it
-        post_message(prepend, slack_channel)
+    # Send this list only to the channel requesting it
+    post_message(prepend, slack_channel)
 
 
 def post_close(command, slack_channel):
@@ -377,6 +379,7 @@ def post_update(command, slack_channel):
 
 
 def post_help(slack_channel, is_admin):
+    print("Entering help method")
     response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
                "`help`: Posts this help.\n" \
                "`post \"...\"`: Submits a problem posting for approval.\n" \
@@ -389,7 +392,7 @@ def post_help(slack_channel, is_admin):
                     "`update # \"...\"`: Updates a problem with the specified text.\n" \
                     "`close #`: Closes problem according to its list number.\n" \
                     "\nMore information can be found at https://github.com/zbendas/ProblemBot"
-        post_message(response, slack_channel)
+    post_message(response, slack_channel)
 
 
 def parse_slack_output(slack_rtm_output):
