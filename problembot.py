@@ -1,10 +1,25 @@
 import json
 import time
+import logging
 import random
 import datetime as dt
 import re as regex
 from slackclient import SlackClient
 
+
+logger = logging.getLogger(__name__)
+
+console_logger = logging.StreamHandler()
+console_logger.setLevel(logging.DEBUG)
+
+file_logger = logging.FileHandler(__name__ + ".log")
+file_logger.setLevel(logging.WARNING)
+
+log_formatter = logging.Formatter('%(levelname)s (%(name)s): \"%(message)s\" at %(asctime)s')
+file_logger.setFormatter(log_formatter)
+
+logger.addHandler(console_logger)
+logger.addHandler(file_logger)
 
 try:
     with open("settings.json") as settings_file:
@@ -14,8 +29,21 @@ except IOError or OSError:
     print("No settings file found! Loading empty settings. This will cause an error!")
     settings = {}
 
+if settings["debug"]:
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.WARNING)
+
 if settings["enable_knowledge"]:
     from modules import knowledgelinker
+
+
+def debuggable(func):
+    def decorated_function(*original_args, **original_kwargs):
+        logger.debug("Entering " + func.__name__)
+        return func(*original_args, **original_kwargs)
+    logger.debug("Exiting " + func.__name__)
+    return decorated_function
 
 # Establish settings
 API_KEY = settings["api"]
@@ -195,6 +223,7 @@ def parse_regex(in_text):
         return Command(None, regex.search("", ""))
 
 
+@debuggable
 def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pending=working):
     response = "Couldn't understand you. No problem posted. Please try again or send `!problem help` for tips."
     # Parse user input
@@ -241,6 +270,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
         post_message(response, slack_channel)
 
 
+@debuggable
 def make_post(slack_user, in_admin, pending, command):
     if in_admin:
         # Admin requests are automatically approved
@@ -269,6 +299,7 @@ def make_post(slack_user, in_admin, pending, command):
             post_to_admin(prepend)
 
 
+@debuggable
 def post_allow(pending, slack_channel):
     confirmation = "Problem has been posted."
     post_message(confirmation, slack_channel)
@@ -290,6 +321,7 @@ def post_allow(pending, slack_channel):
     pending["dirty"] = False
 
 
+@debuggable
 def post_deny(command, posting):
     denial = "Problem will not be posted."
     try:
@@ -315,6 +347,7 @@ def post_deny(command, posting):
     posting["dirty"] = False
 
 
+@debuggable
 def post_list(slack_channel):
     print("Entering list method")
     # List currently posted problems
@@ -333,6 +366,7 @@ def post_list(slack_channel):
     post_message(prepend, slack_channel)
 
 
+@debuggable
 def post_close(command, slack_channel):
     index_to_close = None
     try:
@@ -359,6 +393,7 @@ def post_close(command, slack_channel):
             post_message("This problem could not be closed. Please try again in a moment.", slack_channel)
 
 
+@debuggable
 def post_update(command, slack_channel):
     index_to_update = None
     update_text = None
@@ -381,6 +416,7 @@ def post_update(command, slack_channel):
         post_message(slack_channel, response)
 
 
+@debuggable
 def post_help(slack_channel, is_admin):
     print("Entering help method")
     response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
