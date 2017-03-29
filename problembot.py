@@ -14,6 +14,9 @@ except IOError or OSError:
     print("No settings file found! Loading empty settings. This will cause an error!")
     settings = {}
 
+if settings["enable_knowledge"]:
+    from modules import knowledgelinker
+
 # Establish settings
 API_KEY = settings["api"]
 BOT_ID = settings["bot_id"]
@@ -396,14 +399,22 @@ def post_help(slack_channel, is_admin):
 
 
 def parse_slack_output(slack_rtm_output):
+    """
+    Determines how to route the incoming message from the RTM hose
+    :param slack_rtm_output:
+    :return: Returns 5 values: unparsed text, Slack user, Slack channel, timestamp of message received, module flag
+    """
     output_list = slack_rtm_output
     if output_list and len(output_list) > 0:
         for output in output_list:
             if output and 'text' in output and output['text'].startswith('!problem') and output['user'] != BOT_ID:
-                return output['text'].split("!problem")[1].strip(), output['user'], output['channel'], output['ts']
+                return output['text'].split("!problem")[1].strip(), output['user'], output['channel'], output['ts'], "p"
             elif output and 'text' in output and output['text'].startswith(AT_BOT) and output['user'] != BOT_ID:
-                return output['text'].split(AT_BOT)[1].strip(), output['user'], output['channel'], output['ts']
-    return None, None, None, None
+                return output['text'].split(AT_BOT)[1].strip(), output['user'], output['channel'], output['ts'], "p"
+            elif settings["enable_knowledge"]:
+                if output and 'text' in output and output['user'] != BOT_ID and knowledgelinker.scan(output['text']):
+                    return knowledgelinker.grab(output), output['user'], output['channel'], output['ts'], "kl"
+    return None, None, None, None, None
 
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second firehose delay
@@ -416,9 +427,11 @@ if __name__ == "__main__":
                 text = regex.search(r"(?:```)(.*)(?:```)", item["message"]["text"], regex.IGNORECASE).group(1)
                 list_of_messages.append(Message(GENERAL_CHANNEL, item["message"]["ts"], text))
         while True:
-            unparsed_command, user, channel, timestamp = parse_slack_output(slack_client.rtm_read())
-            if unparsed_command and user and channel:
+            unparsed_command, user, channel, timestamp, module_flag = parse_slack_output(slack_client.rtm_read())
+            if unparsed_command and user and channel and module_flag == "p":
                 handle_command(unparsed_command, user, channel, timestamp)
+            if unparsed_command and user and channel and module_flag == "kl":
+                knowledgelinker.send(unparsed_command, user, channel)
             time.sleep(READ_WEBSOCKET_DELAY)
     else:
         print("Connection failed! Check API key and Bot ID!")
