@@ -12,11 +12,14 @@ logger = logging.getLogger(__name__)
 console_logger = logging.StreamHandler()
 console_logger.setLevel(logging.DEBUG)
 
+console_formatter = logging.Formatter('%(levelname)s (%(name)s): \"%(message)s\"')
+console_logger.setFormatter(console_formatter)
+
 file_logger = logging.FileHandler(__name__ + ".log")
 file_logger.setLevel(logging.WARNING)
 
-log_formatter = logging.Formatter('%(levelname)s (%(name)s): \"%(message)s\" at %(asctime)s')
-file_logger.setFormatter(log_formatter)
+file_formatter = logging.Formatter('%(levelname)s (%(name)s): \"%(message)s\" at %(asctime)s')
+file_logger.setFormatter(file_formatter)
 
 logger.addHandler(console_logger)
 logger.addHandler(file_logger)
@@ -26,11 +29,18 @@ try:
         settings = json.loads(settings_file.read())
 except IOError or OSError:
     # File doesn't exist, create blank one instead
-    print("No settings file found! Loading empty settings. This will cause an error!")
+    logger.setLevel(logging.DEBUG)
+    logger.warning("No settings file found! Loading empty settings. This will cause an error!")
     settings = {}
 
-if settings["debug"]:
+if settings["logging_level"].upper() == "DEBUG":
     logger.setLevel(logging.DEBUG)
+elif settings["logging_level"].upper() == "INFO":
+    logger.setLevel(logging.INFO)
+elif settings["logging_level"].upper() == "WARNING":
+    logger.setLevel(logging.WARNING)
+elif settings["logging_level"].upper() == "ERROR":
+    logger.setLevel(logging.ERROR)
 else:
     logger.setLevel(logging.WARNING)
 
@@ -242,7 +252,7 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
                 pending["text"] = command.regex.group(2)
                 pending["regex"] = command.regex
             except AttributeError:
-                print("No regex match found! Something may be wrong!")
+                logger.warning("No regex match found! Something may be wrong!")
                 pending["text"], pending["dirty"], pending["regex"] = "", False, None
     # Post a problem
     if command.type == "post":
@@ -349,7 +359,6 @@ def post_deny(command, posting):
 
 @debuggable
 def post_list(slack_channel):
-    print("Entering list method")
     # List currently posted problems
     prepend = ""
     counter = 1
@@ -372,7 +381,7 @@ def post_close(command, slack_channel):
     try:
         index_to_close = command.regex.group(1)
     except AttributeError:
-        print("Nothing to close.")
+        logger.warning("Unable to find problem index to close. Command text: %s", command)
     if index_to_close:
         response = "Problem #" + index_to_close + " closed."
         to_close = list_of_messages[int(index_to_close) - 1]  # -1 adjust for human indexing
@@ -400,11 +409,11 @@ def post_update(command, slack_channel):
     try:
         index_to_update = command.regex.group(1)
     except AttributeError:
-        print("Nothing to update.")
+        logger.warning("Unable to find problem index to update. Command text: %s", command)
     try:
         update_text = command.regex.group(3)
     except AttributeError:
-        print("No update text given.")
+        logger.warning("No update text was provided. Command text: %s", command)
     if index_to_update and update_text:
         response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
         to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for indexing
@@ -418,7 +427,6 @@ def post_update(command, slack_channel):
 
 @debuggable
 def post_help(slack_channel, is_admin):
-    print("Entering help method")
     response = "Invoke any of these commands using `!problem` or `@problem-bot`:\n" \
                "`help`: Posts this help.\n" \
                "`post \"...\"`: Submits a problem posting for approval.\n" \
@@ -455,8 +463,8 @@ def parse_slack_output(slack_rtm_output):
 if __name__ == "__main__":
     READ_WEBSOCKET_DELAY = 1  # 1 second firehose delay
     if slack_client.rtm_connect():
-        print("Problem-Bot connected and running!")
-        print("Grabbing currently posted problems!")
+        logger.info("Problem-Bot connected and running!")
+        logger.info("Grabbing currently posted problems!")
         api_response = slack_client.api_call("pins.list", channel=GENERAL_CHANNEL)
         for item in reversed(api_response["items"]):
             if item["type"] == "message" and item["message"]["user"] == BOT_ID:
@@ -470,4 +478,4 @@ if __name__ == "__main__":
                 knowledgelinker.send(unparsed_command, user, channel)
             time.sleep(READ_WEBSOCKET_DELAY)
     else:
-        print("Connection failed! Check API key and Bot ID!")
+        logger.error("Connection failed! Check API key and Bot ID!")
