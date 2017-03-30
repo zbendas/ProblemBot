@@ -1,3 +1,5 @@
-settings.json*
+!example-settings.json
+*.json*
+*.log
 .idea/
 .DS_Store
