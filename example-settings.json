@@ -1,6 +1,8 @@
 {
   "api": "API_KEY",
   "bot_id": "BOT_ID",
+  "logging_level": "",
+  "enable_knowledge": "",
   "general_channel": "",
   "user_channels": [
     ""

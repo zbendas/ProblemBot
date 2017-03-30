@@ -3,6 +3,8 @@ import json
 
 settings = {"api": "",
             "bot_id": "",
+            "logging_level": "",
+            "enable_knowledge": "",
             "general_channel": "",
             "user_channels": [],
             "user_groups": [],
