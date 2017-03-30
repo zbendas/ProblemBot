@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 console_logger = logging.StreamHandler()
 console_logger.setLevel(logging.DEBUG)
 
-console_formatter = logging.Formatter('%(levelname)s (%(name)s): \"%(message)s\"')
+console_formatter = logging.Formatter('%(asctime)s > %(levelname)s (%(name)s): \"%(message)s\"', "%H:%M:%S")
 console_logger.setFormatter(console_formatter)
 
-file_logger = logging.FileHandler(__name__ + ".log")
+file_logger = logging.FileHandler("problembot.log")
 file_logger.setLevel(logging.WARNING)
 
 file_formatter = logging.Formatter('%(levelname)s (%(name)s): \"%(message)s\" at %(asctime)s')
@@ -30,7 +30,7 @@ try:
 except IOError or OSError:
     # File doesn't exist, create blank one instead
     logger.setLevel(logging.DEBUG)
-    logger.warning("No settings file found! Loading empty settings. This will cause an error!")
+    logger.warning("No settings file found! Loading empty settings!")
     settings = {}
 
 if settings["logging_level"].upper() == "DEBUG":
@@ -51,8 +51,9 @@ if settings["enable_knowledge"]:
 def debuggable(func):
     def decorated_function(*original_args, **original_kwargs):
         logger.debug("Entering " + func.__name__)
-        return func(*original_args, **original_kwargs)
-    logger.debug("Exiting " + func.__name__)
+        return_value = func(*original_args, **original_kwargs)
+        logger.debug("Exiting " + func.__name__)
+        return return_value
     return decorated_function
 
 # Establish settings

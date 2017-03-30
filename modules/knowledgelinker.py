@@ -1,22 +1,38 @@
 import re as regex
+import logging
 import problembot
 
 
+module_logger = logging.getLogger("problembot.knowledgelinker")
+
+
+def debuggable(func):
+    def decorated_function(*original_args, **original_kwargs):
+        module_logger.debug("Entering " + func.__name__)
+        return_value = func(*original_args, **original_kwargs)
+        module_logger.debug("Exiting " + func.__name__)
+        return return_value
+    return decorated_function
+
+
+@debuggable
 def scan(text):
-    if regex.search(r"(kb\d{7,})", text, regex.IGNORECASE):
+    if regex.search(r"(?:^| +)(kb\d{7,})", text, regex.IGNORECASE):
         return True
     else:
         return False
 
 
+@debuggable
 def grab(output):
-    result = regex.search(r"(kb\d{7,})", output['text'], regex.IGNORECASE)
+    result = regex.search(r"(?:^| +)(kb\d{7,})", output['text'], regex.IGNORECASE)
     if result.group(1):
         return result.group(1)
     else:
         return None
 
 
+@debuggable
 def send(text, user, channel):
     url_structure = problembot.settings["url"]
     article = text.upper()
