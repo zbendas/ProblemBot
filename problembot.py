@@ -206,14 +206,24 @@ def pin(ts, destination, flag):
         raise ValueError("Flag argument can be only + or -")
 
 
+@debuggable
+def find_group(group_name):
+    groups = slack_client.api_call("groups.list", exclude_archived=True)["groups"]
+    for group in groups:
+        if group_name == group["name"]:
+            return group["id"], group["name"]
+    logger.warning("No group \"%s\" found!", group_name)
+    return None, None
+
+
 def parse_regex(in_text):
-    # Play with this regex here: https://regex101.com/r/3UZNxU/3
-    to_be_posted = regex.search(r"(?:^post +)((?:\"|')(.*)(?:\"|')) *"
-                                r"((?:<#)(\w*)(?:\|(\w*)>))?", in_text, regex.IGNORECASE)
+    # Play with this regex here: https://regex101.com/r/3UZNxU/6
+    to_be_posted = regex.search(r"(?:^post +)((?:[\"'])(.*)(?:[\"'])) *"
+                                r"((?:(?:<#)(\w*)(?:\|(\w*)>))|#(\S+))?", in_text, regex.IGNORECASE)
     allow_command = regex.search(r"(?:^allow)", in_text, regex.IGNORECASE)
-    deny_command = regex.search(r"(?:^deny) *((?:\"|')(.*)(?:\"|'))?", in_text, regex.IGNORECASE)
+    deny_command = regex.search(r"(?:^deny) *((?:[\"'])(.*)(?:[\"']))?", in_text, regex.IGNORECASE)
     close_command = regex.search(r"(?:^close +)(\d+)", in_text, regex.IGNORECASE)
-    update_command = regex.search(r"(?:^update +)(\d) +((?:\"|')(.*)(?:\"|'))", in_text, regex.IGNORECASE)
+    update_command = regex.search(r"(?:^update +)(\d) +((?:[\"'])(.*)(?:[\"']))", in_text, regex.IGNORECASE)
     list_command = regex.search(r"(?:^list)", in_text, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", in_text, regex.IGNORECASE)
     if to_be_posted:
@@ -298,14 +308,27 @@ def make_post(slack_user, in_admin, pending, command):
         prepend = "<@" + slack_user + "> has requested that the following problem be posted:\n```" + \
                   pending["text"] + "```\n\n`Allow` or `Deny`?"
         try:
-            target_group = command.regex.group(4)
+            target_channel = command.regex.group(4)
         except AttributeError:
-            # No targeted group
+            # No targeted channel
+            logger.info("Post had no targeted channel.")
+            target_channel = None
+        try:
+            target_group = command.regex.group(6)
+        except AttributeError:
+            # No target group
+            logger.info("Post had no targeted group.")
             target_group = None
         # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
-        if target_group and (target_group in ADMIN_CHANNELS or target_group in ADMIN_GROUPS):
+        if target_channel and (target_channel in ADMIN_CHANNELS or target_channel in ADMIN_GROUPS):
             # Send message to target group
-            post_message(prepend, target_group)
+            post_message(prepend, target_channel)
+        elif target_group:
+            target_id, target_group = find_group(target_group)
+            if target_group and target_id and (target_id in ADMIN_CHANNELS or target_id in ADMIN_GROUPS):
+                post_message(prepend, target_id)
+            else:
+                post_to_admin(prepend)
         else:
             post_to_admin(prepend)
 
