@@ -71,6 +71,7 @@ class Memoize:
             # If cache is greater than an hour old, clear it to prevent stale responses, then reset expiry timer
             self.cache = {}
             self.expire = dt.datetime.now() + dt.timedelta(hours=1)
+            logger.info("Clearing the function response cache for %s", self.func.__name__)
         try:
             return self.cache[args]
         except KeyError:
