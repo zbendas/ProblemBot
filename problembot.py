@@ -63,9 +63,14 @@ class Memoize:
     def __init__(self, func):
         self.__name__ = func.__name__
         self.func = func
+        self.expire = dt.datetime.now() + dt.timedelta(hours=1)
         self.cache = {}
 
     def __call__(self, *args):
+        if dt.datetime.now() > self.expire:
+            # If cache is greater than an hour old, clear it to prevent stale responses, then reset expiry timer
+            self.cache = {}
+            self.expire = dt.datetime.now() + dt.timedelta(hours=1)
         try:
             return self.cache[args]
         except KeyError:
