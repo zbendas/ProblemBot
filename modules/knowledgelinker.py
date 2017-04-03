@@ -42,4 +42,4 @@ def send(text, user, channel):
 
 if __name__ == "__main__":
     print("This module is not meant to be run separately. Please run problembot.py instead, and enable the "
-          "\"knowledge\" function in your settings.json")
+          "\"knowledgelinker\" module in your settings.json")
