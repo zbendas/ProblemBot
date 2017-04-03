@@ -44,8 +44,10 @@ elif settings["logging_level"].upper() == "ERROR":
 else:
     logger.setLevel(logging.WARNING)
 
-if settings["enable_knowledge"]:
+if settings["modules"]["knowledgelinker"]:
     from modules import knowledgelinker
+if settings["modules"]["whenaway"]:
+    from modules import whenaway
 
 
 def debuggable(func):
@@ -55,6 +57,21 @@ def debuggable(func):
         logger.debug("Exiting " + func.__name__)
         return return_value
     return decorated_function
+
+
+class Memoize:
+    def __init__(self, func):
+        self.__name__ = func.__name__
+        self.func = func
+        self.cache = {}
+
+    def __call__(self, *args):
+        try:
+            return self.cache[args]
+        except KeyError:
+            self.cache[args] = self.func(*args)
+            return self.cache[args]
+
 
 # Establish settings
 API_KEY = settings["api"]
@@ -207,6 +224,7 @@ def pin(ts, destination, flag):
 
 
 @debuggable
+@Memoize
 def find_group(group_name):
     groups = slack_client.api_call("groups.list", exclude_archived=True)["groups"]
     for group in groups:
@@ -319,14 +337,21 @@ def make_post(slack_user, in_admin, pending, command):
             # No target group
             logger.info("Post had no targeted group.")
             target_group = None
-        # Makes sure that the targeted group is an admin channel. If not, this will post in all admin channels.
+        # Makes sure that the targeted channel is an admin channel. If not, this will post in all admin channels.
         if target_channel and (target_channel in ADMIN_CHANNELS or target_channel in ADMIN_GROUPS):
-            # Send message to target group
-            post_message(prepend, target_channel)
+            # Send message to target channel
+            if settings["modules"]["whenaway"]:
+                whenaway.post_if_present(prepend, target_channel)
+            else:
+                post_message(prepend, target_channel)
         elif target_group:
             target_id, target_group = find_group(target_group)
             if target_group and target_id and (target_id in ADMIN_CHANNELS or target_id in ADMIN_GROUPS):
-                post_message(prepend, target_id)
+                # Send message to target group
+                if settings["modules"]["whenaway"]:
+                    whenaway.post_if_present(prepend, target_id)
+                else:
+                    post_message(prepend, target_id)
             else:
                 post_to_admin(prepend)
         else:
@@ -366,12 +391,13 @@ def post_deny(command, posting):
     if reason:
         prepend += "\nThis reason was given:\n```" + reason + "```\n"
     if posting["regex"]:
-        try:
-            target = posting["regex"].group(4)  # Find the channel this was targeted to
-        except AttributeError:
-            target = None
-        if target and (target in ADMIN_CHANNELS and target in ADMIN_GROUPS):
-            post_message(denial, target)
+        target_channel = posting["regex"].group(4)  # Find the channel this was targeted to
+        target_group = find_group(posting["regex"].group(6))[0]  # Find the group this was targeted to
+        logger.debug("Targeted channel/group: " + str(target_channel) + "/" + str(target_group))
+        if target_channel and (target_channel in ADMIN_CHANNELS):
+            post_message(denial, target_channel)
+        elif target_group and (target_group in ADMIN_GROUPS):
+            post_message(denial, target_group)
         else:
             post_to_admin(denial)
     # Go back to problem and remove its :question:
@@ -479,7 +505,7 @@ def parse_slack_output(slack_rtm_output):
                 return output['text'].split("!problem")[1].strip(), output['user'], output['channel'], output['ts'], "p"
             elif output and 'text' in output and output['text'].startswith(AT_BOT) and output['user'] != BOT_ID:
                 return output['text'].split(AT_BOT)[1].strip(), output['user'], output['channel'], output['ts'], "p"
-            elif settings["enable_knowledge"]:
+            elif settings["modules"]["knowledgelinker"]:
                 if output and 'text' in output and output['user'] != BOT_ID and knowledgelinker.scan(output['text']):
                     return knowledgelinker.grab(output), output['user'], output['channel'], output['ts'], "kl"
     return None, None, None, None, None
