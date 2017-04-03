@@ -8,6 +8,7 @@ settings = {"api": "",
                 "knowledgelinker": False,
                 "whenaway": False
             },
+            "url": "",
             "general_channel": "",
             "user_channels": [],
             "user_groups": [],
