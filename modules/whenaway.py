@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import problembot
 
@@ -14,7 +15,28 @@ def debuggable(func):
     return decorated_function
 
 
+class Memoize:
+    def __init__(self, func):
+        self.__name__ = func.__name__
+        self.func = func
+        self.expire = dt.datetime.now() + dt.timedelta(hours=1)
+        self.cache = {}
+
+    def __call__(self, *args):
+        if dt.datetime.now() > self.expire:
+            # If cache is greater than an hour old, clear it to prevent stale responses, then reset expiry timer
+            self.cache = {}
+            self.expire = dt.datetime.now() + dt.timedelta(hours=1)
+            module_logger.info("Clearing the function response cache for %s", self.func.__name__)
+        try:
+            return self.cache[args]
+        except KeyError:
+            self.cache[args] = self.func(*args)
+            return self.cache[args]
+
+
 @debuggable
+@Memoize
 def get_users(slack_channel):
     response = problembot.slack_client.api_call("channels.info", channel=slack_channel)
     # response["ok"] will be False if slack_channel was actually a group, as channels.info cannot check group info
