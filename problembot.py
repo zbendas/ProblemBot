@@ -46,6 +46,8 @@ else:
 
 if settings["modules"]["knowledgelinker"]:
     from modules import knowledgelinker
+    if settings["kb_word"] == "":
+        settings["kb_word"] = "kb"
 if settings["modules"]["whenaway"]:
     from modules import whenaway
 
