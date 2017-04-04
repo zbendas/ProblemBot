@@ -46,6 +46,8 @@ else:
 
 if settings["modules"]["knowledgelinker"]:
     from modules import knowledgelinker
+    if settings["kb_word"] == "":
+        settings["kb_word"] = "kb"
 if settings["modules"]["whenaway"]:
     from modules import whenaway
 
@@ -116,7 +118,7 @@ class Message:
     @dirty.setter
     def dirty(self, value):
         if value is not True and value is not False:
-            raise ValueError("Argument must be boolean.")
+            raise TypeError("Argument must be boolean.")
         else:
             self._dirty = value
 

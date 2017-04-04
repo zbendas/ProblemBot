@@ -93,4 +93,5 @@ to an all-clear message if there are no further issues.
 * `close #`: Closes the specified problem and resets the channel topics of the user channels
 
 ## Modules
-ProblemBot ships with a few extra features that can be enabled on a per-installation basis via the `settings.json` file. More information can be found on these modules in the `modules/README.md` file.
+ProblemBot ships with a few extra features that can be enabled on a per-installation basis via the `settings.json` file.
+More information can be found on these modules in the `modules/README.md` file.
