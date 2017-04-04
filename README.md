@@ -11,7 +11,7 @@ These should all be collected into a `settings.json` file. This `.json` should b
 {
  "api": "XXXX",
  "bot_id": "XXXX",
- "logging_level": "XXXX"
+ "logging_level": "XXXX",
  "modules": {
   "knowledgelinker": false,
   "whenaway": false
