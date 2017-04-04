@@ -10,7 +10,7 @@ KnowledgeLinker allows for the easy linking of knowledge base articles from an o
 that contains a keyword, it will reply with a URL (taken from the `url` key in `settings.json`) appended with the knowledge
 base keyword (taken from the `kb_word` key in `settings.json`) and all subsequent, continuous numbers will be
 considered part of the desired knowledge base article number. This match will include the keyword. For example, if
-the `kb_word` is "kb", and is followed by "1234567", the URL linked to will be `url`/"kb1234567".
+the `kb_word` is "kb", and is followed by "1234567", the URL linked to will be `url`"kb1234567".
 
 ### whenaway.py
 WhenAway determines, when a `post` message is sent to a specific channel/group, whether or not the any of the members of that 
