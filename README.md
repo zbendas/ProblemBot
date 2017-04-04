@@ -11,6 +11,11 @@ These should all be collected into a `settings.json` file. This `.json` should b
 {
  "api": "XXXX",
  "bot_id": "XXXX",
+ "logging_level": "XXXX",
+ "modules": {
+  "knowledgelinker": false,
+  "whenaway": false
+ },
  "general_channel": "XXXX",
  "user_channels": [
    "XXXX"],
@@ -22,7 +27,7 @@ These should all be collected into a `settings.json` file. This `.json` should b
    "XXXX"]
 }
 ```
-This `settings.json` file will be loaded using Python's built-in `json` library and parsed using `json.loads()` to establish an internal dictionary of these values.
+This `settings.json` file will be loaded using Python's built-in `json` library and parsed using `json.loads()` to establish an internal dictionary of these values. The `create_settings.py` program can be used to create a basic `settings.json` file that should allow ProblemBot to get off the ground, but the file can, of course, be edited by hand for specific needs.
 
 *Without this file, ProblemBot will crash!*
 
@@ -86,3 +91,6 @@ ProblemBot will unpin and announce the resolution of a specified problem. The th
 to serve as an alert. This will also reset the channel topic in all user channels back to the next most recent problem or
 to an all-clear message if there are no further issues.
 * `close #`: Closes the specified problem and resets the channel topics of the user channels
+
+## Modules
+ProblemBot ships with a few extra features that can be enabled on a per-installation basis via the `settings.json` file. More information can be found on these modules in the `modules/README.md` file.

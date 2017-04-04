@@ -1,8 +1,14 @@
 import json
-
+# TODO: Update this to incorporate new changes to the settings.json file, including new modularity options
 
 settings = {"api": "",
             "bot_id": "",
+            "logging_level": "warning",
+            "modules": {
+                "knowledgelinker": False,
+                "whenaway": False
+            },
+            "url": "",
             "general_channel": "",
             "user_channels": [],
             "user_groups": [],
