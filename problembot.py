@@ -2,6 +2,7 @@ import json
 import time
 import logging
 import random
+import requests
 import datetime as dt
 import re as regex
 from slackclient import SlackClient
@@ -43,6 +44,7 @@ elif settings["logging_level"].upper() == "ERROR":
     logger.setLevel(logging.ERROR)
 else:
     logger.setLevel(logging.WARNING)
+    logger.warning("Logging level set incorrectly. Defaulting to WARNING. Please check your settings.json.")
 
 if settings["modules"]["knowledgelinker"]:
     from modules import knowledgelinker
@@ -139,6 +141,9 @@ class Command(object):
 
     @type.setter
     def type(self, value):
+        if value is None:
+            self._type = None
+            return
         passed_in = value.lower()
         if passed_in == "post":
             self._type = passed_in
@@ -476,7 +481,7 @@ def post_update(command, slack_channel):
         response = "Problem #" + index_to_update + " updated with:\n```" + update_text + "```"
         to_update = list_of_messages[int(index_to_update) - 1]  # -1 to adjust for indexing
         prepend = "The following update has been posted:\n```"
-        prepend += update_text
+        prepend += update_text + "```"
         # Thread the update message
         thread_reply(prepend, to_update.channel, to_update.timestamp, broadcast=True)
         # Notify sending channel of posting
