@@ -43,6 +43,7 @@ elif settings["logging_level"].upper() == "ERROR":
     logger.setLevel(logging.ERROR)
 else:
     logger.setLevel(logging.WARNING)
+    logger.warning("Logging level set incorrectly. Defaulting to WARNING. Please check your settings.json.")
 
 if settings["modules"]["knowledgelinker"]:
     from modules import knowledgelinker
