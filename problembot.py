@@ -2,7 +2,6 @@ import json
 import time
 import logging
 import random
-import requests
 import datetime as dt
 import re as regex
 from slackclient import SlackClient
@@ -48,10 +47,11 @@ else:
 
 if settings["modules"]["knowledgelinker"]:
     from modules import knowledgelinker
-    if settings["kb_word"] == "":
-        settings["kb_word"] = "kb"
+    if settings["module_settings"]["knowledgelinker"]["kb_word"] == "":
+        settings["module_settings"]["knowledgelinker"]["kb_word"] = "kb"
 if settings["modules"]["whenaway"]:
     from modules import whenaway
+    destination_channel = None
 
 
 def debuggable(func):
@@ -107,8 +107,8 @@ list_of_messages = []
 class Message:
     def __init__(self, chnnl, tmstmp, txt):
         self.channel, self.timestamp, self.text = chnnl, tmstmp, txt
-        self.dirty = False
         self._dirty = None
+        self.dirty = False
 
     def __str__(self):
         return "Channel: " + self.channel + ", TS: " + self.timestamp + ", Text: " + self.text
@@ -171,10 +171,36 @@ def post_message(message, destination):
     return slack_client.api_call("chat.postMessage", channel=destination, text=message, as_user=True)
 
 
+def post_rich_message(message, attachments, destination):
+    return slack_client.api_call("chat.postMessage", channel=destination, text=message,
+                                 attachments=attachments, as_user=True)
+
+
 def post_to_general(pending=working):
-    prepend = ":rotating_light::rotating_light::rotating_light:\n" \
-              "The University is currently experiencing the following issue:\n```" + pending["text"] + "```"
-    api_result = post_message(prepend, GENERAL_CHANNEL)
+    attachments = [
+        {
+            "fallback": pending["text"],
+            "color": "#ff4f4f",
+            "fields": [
+                {
+                    "title": "The University is experiencing the following issue:",
+                    "value": pending["text"],
+                    "short": False
+                }
+            ],
+            "ts": pending["timestamp"]
+        },
+        {
+            "fallback": "Divider",
+            "text": "---------------"
+        },
+        {
+            "fallback": "Additional information",
+            "color": "#bf5700",
+            "text": "For additional information, see <https://ut.service-now.com/utss/alertlist.do|ITS Alerts Page>"
+        }
+    ]
+    api_result = post_rich_message("", attachments, GENERAL_CHANNEL)
     message = Message(api_result["channel"], api_result["ts"], pending["text"])
     list_of_messages.append(message)
     return pin(api_result["ts"], GENERAL_CHANNEL, "+")
@@ -324,6 +350,8 @@ def handle_command(slack_command, slack_user, slack_channel, item_timestamp, pen
 
 @debuggable
 def make_post(slack_user, in_admin, pending, command):
+    if settings["modules"]["whenaway"]:
+        global destination_channel
     if in_admin:
         # Admin requests are automatically approved
         prepend = "Posting the following:\n```" + pending["text"] + "```"
@@ -354,7 +382,7 @@ def make_post(slack_user, in_admin, pending, command):
         if target_channel and (target_channel in ADMIN_CHANNELS or target_channel in ADMIN_GROUPS):
             # Send message to target channel
             if settings["modules"]["whenaway"]:
-                whenaway.post_if_present(prepend, target_channel)
+                success, destination_channel = whenaway.post_if_present(prepend, target_channel)
             else:
                 post_message(prepend, target_channel)
         elif target_group:
@@ -362,7 +390,7 @@ def make_post(slack_user, in_admin, pending, command):
             if target_group and target_id and (target_id in ADMIN_CHANNELS or target_id in ADMIN_GROUPS):
                 # Send message to target group
                 if settings["modules"]["whenaway"]:
-                    whenaway.post_if_present(prepend, target_id)
+                    success, destination_channel = whenaway.post_if_present(prepend, target_id)
                 else:
                     post_message(prepend, target_id)
             else:
@@ -407,12 +435,16 @@ def post_deny(command, posting):
         target_channel = posting["regex"].group(4)  # Find the channel this was targeted to
         target_group = find_group(posting["regex"].group(6))[0]  # Find the group this was targeted to
         logger.debug("Targeted channel/group: " + str(target_channel) + "/" + str(target_group))
-        if target_channel and (target_channel in ADMIN_CHANNELS):
-            post_message(denial, target_channel)
-        elif target_group and (target_group in ADMIN_GROUPS):
-            post_message(denial, target_group)
+        if settings["modules"]["whenaway"]:
+            global destination_channel
+            post_message(denial, destination_channel)
         else:
-            post_to_admin(denial)
+            if target_channel and (target_channel in ADMIN_CHANNELS):
+                post_message(denial, target_channel)
+            elif target_group and (target_group in ADMIN_GROUPS):
+                post_message(denial, target_group)
+            else:
+                post_to_admin(denial)
     # Go back to problem and remove its :question:
     react("question", posting["channel"], posting["timestamp"], "-")
     react("no_entry_sign", posting["channel"], posting["timestamp"], "+")
@@ -531,8 +563,12 @@ if __name__ == "__main__":
         api_response = slack_client.api_call("pins.list", channel=GENERAL_CHANNEL)
         for item in reversed(api_response["items"]):
             if item["type"] == "message" and item["message"]["user"] == BOT_ID:
-                text = regex.search(r"(?:```)(.*)(?:```)", item["message"]["text"], regex.IGNORECASE).group(1)
-                list_of_messages.append(Message(GENERAL_CHANNEL, item["message"]["ts"], text))
+                if item["message"]["text"] is not "":
+                    text = regex.search(r"(?:```)(.*)(?:```)", item["message"]["text"], regex.IGNORECASE).group(1)
+                    list_of_messages.append(Message(GENERAL_CHANNEL, item["message"]["ts"], text))
+                elif item["message"]["attachments"] is not []:
+                    text = item["message"]["attachments"][0]["fields"][0]["value"]
+                    list_of_messages.append(Message(GENERAL_CHANNEL, item["message"]["ts"], text))
         while True:
             unparsed_command, user, channel, timestamp, module_flag = parse_slack_output(slack_client.rtm_read())
             if unparsed_command and user and channel and module_flag == "p":

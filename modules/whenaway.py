@@ -5,6 +5,8 @@ import problembot
 
 module_logger = logging.getLogger("problembot.whenaway")
 
+defaulting_channel = problembot.settings["module_settings"]["whenaway"]["defaulting_channel"]
+
 
 def debuggable(func):
     def decorated_function(*original_args, **original_kwargs):
@@ -70,8 +72,15 @@ def determine_away(slack_user):
 
 @debuggable
 def post_if_present(text, slack_channel):
+    """
+    
+    :param text: The text of the message to be posted 
+    :param slack_channel: The intended channel
+    :return: Boolean, String; Boolean shows whether or not the operation was successful,
+             String is the final channel where the posting ended up, regardless of intended channel
+    """
     users = get_users(slack_channel)
     for user in users:
         if not determine_away(user):
-            return problembot.post_message(text, slack_channel)
-    return problembot.post_to_admin(text)
+            return problembot.post_message(text, slack_channel), slack_channel
+    return problembot.post_message(text, defaulting_channel), defaulting_channel

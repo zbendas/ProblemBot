@@ -16,6 +16,15 @@ These should all be collected into a `settings.json` file. This `.json` should b
   "knowledgelinker": false,
   "whenaway": false
  },
+ "module_settings": {
+  "knowledgelinker": {
+    "kb_word": "kb",
+    "url": "http://example.com/"
+  },
+  "whenaway": {
+    "defaulting_channel": "XXXX"
+  }
+ },
  "general_channel": "XXXX",
  "user_channels": [
    "XXXX"],
