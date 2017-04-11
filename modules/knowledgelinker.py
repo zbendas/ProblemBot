@@ -17,7 +17,8 @@ def debuggable(func):
 
 @debuggable
 def scan(text):
-    if regex.search(r"(?:^| +)(" + problembot.settings["kb_word"] + "\d+)", text, regex.IGNORECASE):
+    if regex.search(r"(?:^| +)(" + problembot.settings["module_settings"]["knowledgelinker"]["kb_word"]
+                    + "\d+)", text, regex.IGNORECASE):
         return True
     else:
         return False
@@ -25,7 +26,8 @@ def scan(text):
 
 @debuggable
 def grab(output):
-    result = regex.search(r"(?:^| +)(" + problembot.settings["kb_word"] + "\d+)", output['text'], regex.IGNORECASE)
+    result = regex.search(r"(?:^| +)(" + problembot.settings["module_settings"]["knowledgelinker"]["kb_word"] + "\d+)",
+                          output['text'], regex.IGNORECASE)
     if result.group(1):
         return result.group(1)
     else:
