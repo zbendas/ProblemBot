@@ -299,6 +299,7 @@ def parse_regex(in_text):
     elif help_command:
         return Command("help", help_command)
     else:
+        logger.warning("Could not parse the following user input: " + in_text)
         return Command(None, regex.search("", ""))
 
 
