@@ -276,11 +276,12 @@ def find_group(group_name):
 def parse_regex(in_text):
     # Play with this regex here: https://regex101.com/r/3UZNxU/6
     to_be_posted = regex.search(r"(?:^post +)((?:[\"'])(.*)(?:[\"'])) *"
-                                r"((?:(?:<#)(\w*)(?:\|(\w*)>))|#(\S+))?", in_text, regex.IGNORECASE)
-    allow_command = regex.search(r"(?:^allow)", in_text, regex.IGNORECASE)
-    deny_command = regex.search(r"(?:^deny) *((?:[\"'])(.*)(?:[\"']))?", in_text, regex.IGNORECASE)
-    close_command = regex.search(r"(?:^close +)(\d+)", in_text, regex.IGNORECASE)
-    update_command = regex.search(r"(?:^update +)(\d) +((?:[\"'])(.*)(?:[\"']))", in_text, regex.IGNORECASE)
+                                r"((?:(?:<#)(\w*)(?:\|(\w*)>))|#(\S+))?", in_text, regex.IGNORECASE | regex.DOTALL)
+    allow_command = regex.search(r"(?:^allow)", in_text, regex.IGNORECASE | regex.DOTALL)
+    deny_command = regex.search(r"(?:^deny) *((?:[\"'])(.*)(?:[\"']))?", in_text, regex.IGNORECASE | regex.DOTALL)
+    close_command = regex.search(r"(?:^close +)(\d+)", in_text, regex.IGNORECASE | regex.DOTALL)
+    update_command = regex.search(r"(?:^update +)(\d) +((?:[\"'])(.*)(?:[\"']))", in_text,
+                                  regex.IGNORECASE | regex.DOTALL)
     list_command = regex.search(r"(?:^list)", in_text, regex.IGNORECASE)
     help_command = regex.search(r"(?:^help)", in_text, regex.IGNORECASE)
     if to_be_posted:
